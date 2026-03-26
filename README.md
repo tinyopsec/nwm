@@ -21,6 +21,8 @@ A minimal tiling window manager for X11, inspired by dwm. nwm follows the philos
 Install the X11 development headers, then build and install:
 
 ```
+git clone https://github.com/tinyopsec/nwm
+cd nwm
 make
 sudo make install
 ```
