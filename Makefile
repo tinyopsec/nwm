@@ -1,11 +1,8 @@
 VERSION  = 0.2
 PREFIX   = /usr/local
-X11INC   = /usr/X11R6/include
-X11LIB   = /usr/X11R6/lib
-
 CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os \
-           -I$(X11INC) -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L -DVERSION=\"$(VERSION)\"
-LDFLAGS  = -L$(X11LIB) -lX11
+           -I/usr/include -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L -DVERSION=\"$(VERSION)\"
+LDFLAGS  = -L/usr/lib -lX11
 
 CC       = cc
 
