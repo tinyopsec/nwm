@@ -8,7 +8,6 @@
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-#include <X11/Xproto.h>
 
 #define BUTTONMASK    (ButtonPressMask|ButtonReleaseMask)
 #define MOUSEMASK     (BUTTONMASK|PointerMotionMask)
@@ -705,7 +704,8 @@ void setup(void) {
 	XSetWindowAttributes wa;
 	XColor xc; Colormap cmap; Atom utf8;
 
-	signal(SIGCHLD, SIG_IGN);
+	struct sigaction sa = { .sa_handler = SIG_IGN, .sa_flags = SA_RESTART };
+	sigaction(SIGCHLD, &sa, NULL);
 	screen = DefaultScreen(dpy);
 	sw = DisplayWidth(dpy, screen);
 	sh = DisplayHeight(dpy, screen);
@@ -713,9 +713,12 @@ void setup(void) {
 	wx = wy = 0; ww = sw; wh = sh;
 
 	cmap = DefaultColormap(dpy, screen);
-	XAllocNamedColor(dpy, cmap, col_nborder, &xc, &xc); nborder = xc.pixel;
-	XAllocNamedColor(dpy, cmap, col_sborder, &xc, &xc); sborder = xc.pixel;
-	XAllocNamedColor(dpy, cmap, col_uborder, &xc, &xc); uborder = xc.pixel;
+	if (!XAllocNamedColor(dpy, cmap, col_nborder, &xc, &xc)) die("nwm: cannot allocate color");
+	nborder = xc.pixel;
+	if (!XAllocNamedColor(dpy, cmap, col_sborder, &xc, &xc)) die("nwm: cannot allocate color");
+	sborder = xc.pixel;
+	if (!XAllocNamedColor(dpy, cmap, col_uborder, &xc, &xc)) die("nwm: cannot allocate color");
+	uborder = xc.pixel;
 
 	if (!(cursor[0] = XCreateFontCursor(dpy, 68)))  die("nwm: XCreateFontCursor");
 	if (!(cursor[1] = XCreateFontCursor(dpy, 52)))  die("nwm: XCreateFontCursor");
@@ -757,7 +760,6 @@ void setup(void) {
 	              | ButtonPressMask|PointerMotionMask|EnterWindowMask
 	              | StructureNotifyMask|PropertyChangeMask;
 	XChangeWindowAttributes(dpy, root, CWEventMask|CWCursor, &wa);
-	XSelectInput(dpy, root, wa.event_mask);
 	focus(NULL);
 }
 
@@ -957,14 +959,14 @@ Client *wintoclient(Window w) {
 
 int xerror(Display *d, XErrorEvent *ee) {
 	if (ee->error_code == BadWindow
-	|| (ee->request_code == X_SetInputFocus      && ee->error_code == BadMatch)
-	|| (ee->request_code == X_PolyText8          && ee->error_code == BadDrawable)
-	|| (ee->request_code == X_PolyFillRectangle  && ee->error_code == BadDrawable)
-	|| (ee->request_code == X_PolySegment        && ee->error_code == BadDrawable)
-	|| (ee->request_code == X_ConfigureWindow    && ee->error_code == BadMatch)
-	|| (ee->request_code == X_GrabButton         && ee->error_code == BadAccess)
-	|| (ee->request_code == X_GrabKey            && ee->error_code == BadAccess)
-	|| (ee->request_code == X_CopyArea           && ee->error_code == BadDrawable))
+	|| (ee->request_code == 42  && ee->error_code == BadMatch)
+	|| (ee->request_code == 74  && ee->error_code == BadDrawable)
+	|| (ee->request_code == 70  && ee->error_code == BadDrawable)
+	|| (ee->request_code == 66  && ee->error_code == BadDrawable)
+	|| (ee->request_code == 12  && ee->error_code == BadMatch)
+	|| (ee->request_code == 28  && ee->error_code == BadAccess)
+	|| (ee->request_code == 33  && ee->error_code == BadAccess)
+	|| (ee->request_code == 62  && ee->error_code == BadDrawable))
 		return 0;
 	fprintf(stderr, "nwm: error req=%d code=%d\n", ee->request_code, ee->error_code);
 	return xerrorxlib(d, ee);
