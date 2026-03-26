@@ -26,6 +26,10 @@ cd nwm
 make
 sudo make install
 ```
+AUR:
+```
+yay -S nwm
+```
 
 To uninstall:
 
