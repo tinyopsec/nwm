@@ -810,16 +810,14 @@ void tile(void) {
 	for (i = 0, c = nexttiled(clients); c; c = nexttiled(c->next), i++) {
 		if (i < nm) {
 			int bh  = (wh - (int)(nm + 1) * g) / (int)nm;
-			int rem = (wh - (int)(nm + 1) * g) % (int)nm;
-			int y0  = wy + g + (int)i * (bh + g) + (int)(i < (unsigned)rem ? i : (unsigned)rem);
-			int h   = bh + (i < (unsigned)rem ? 1 : 0);
+			int y0  = wy + g + (int)i * (bh + g);
+			int h   = bh;
 			resize(c, wx + g, y0, mw - 2*c->bw - 2*g, h - 2*c->bw, 0);
 		} else if (ns > 0) {
 			unsigned int si = i - nm;
 			int bh  = (wh - (int)(ns + 1) * g) / (int)ns;
-			int rem = (wh - (int)(ns + 1) * g) % (int)ns;
-			int y0  = wy + g + (int)si * (bh + g) + (int)(si < (unsigned)rem ? si : (unsigned)rem);
-			int h   = bh + (si < (unsigned)rem ? 1 : 0);
+			int y0  = wy + g + (int)si * (bh + g);
+			int h   = bh;
 			resize(c, wx + mw + g, y0, ww - mw - 2*c->bw - 2*g, h - 2*c->bw, 0);
 		}
 	}

@@ -14,9 +14,9 @@ static const float        mfact        = 0.55;
 static const int          nmaster      = 1;
 static const int          resizehints  = 0;
 
-static const char col_nborder[] = "#333333";
-static const char col_sborder[] = "#005577";
-static const char col_uborder[] = "#cc2222";
+static const char col_nborder[] = "#1e1e1e";
+static const char col_sborder[] = "#7c9e7e";
+static const char col_uborder[] = "#c47f50";
 
 static const char *tags[] = { "1","2","3","4","5","6","7","8","9" };
 
