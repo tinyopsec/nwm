@@ -1,0 +1,15 @@
+# Compiled binary
+nwm
+
+# Object files
+*.o
+*.out
+
+# Backup files
+*~
+*.swp
+*.bak
+
+# OS generated files
+.DS_Store
+Thumbs.db
