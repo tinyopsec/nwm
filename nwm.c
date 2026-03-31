@@ -352,7 +352,7 @@ int getrootptr(int *x, int *y) {
 long getstate(Window w) {
 	int fmt; long res = -1; unsigned char *p = NULL; unsigned long n, ex; Atom real;
 	if (XGetWindowProperty(d, w, wmatom[WMState], 0L, 2L, False, wmatom[WMState],
-		&real, &fmt, &n, &ex, &p) == Success && n) res = *p;
+		&real, &fmt, &n, &ex, &p) == Success && n) res = *(long*)p;
 	if (p) XFree(p);
 	return res;
 }
@@ -969,7 +969,7 @@ void zoom(const A *arg) {
 }
 
 int main(int argc, char *argv[]) {
-	if (argc == 2 && !strcmp("-v", argv[1])) die("nwm-0.3");
+	if (argc == 2 && !strcmp("-v", argv[1])) die("nwm-1.1");
 	else if (argc != 1) die("usage: nwm [-v]");
 	if (!(d = XOpenDisplay(NULL))) die("nwm: cannot open display");
 	checkotherwm();
