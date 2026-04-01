@@ -6,13 +6,7 @@
 [![C99](https://img.shields.io/badge/C-C99%20%2F%20POSIX-lightgrey.svg)]()
 [![LOC](https://img.shields.io/badge/source-under%201000%20lines-brightgreen.svg)]()
 
-> **Repository description (use as GitHub meta-description):**
-> nwm is a minimal tiling window manager for X11, written in under 1000 lines of POSIX C. A lightweight dwm alternative with compile-time configuration, tag-based workspaces, and no runtime dependencies beyond Xlib.
-
 **nwm** (Nano Window Manager) is a minimal, lightweight X11 window manager written in POSIX C99. Under 1000 lines across two files. No config files, no status bar, no runtime dependencies beyond Xlib. Tiling, floating, and monocle layouts. Tag-based workspaces. Compile-time configuration via `nwm.h`. A clean dwm alternative for users who want full control without the patch surface.
-
-> **Suggested GitHub topics:**
-> `tiling-window-manager` `x11` `c` `lightweight-wm` `minimal-wm` `nwm` `posix` `suckless` `xlib` `dwm-alternative` `window-manager` `linux`
 
 ---
 

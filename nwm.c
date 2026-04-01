@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -53,8 +54,10 @@ static void configure(C*);
 static void configurerequest(XEvent*);
 static void destroynotify(XEvent*);
 static void detach(C*);
+static void detachstack(C*);
 static void enternotify(XEvent*);
 static void fc(C*);
+static void focusclient(C*);
 static void focusin(XEvent*);
 static void focusstack(const A*);
 static Atom getatom(C*, Atom);
@@ -148,6 +151,7 @@ die(const char *fmt, ...) {
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);
 	fputc('\n', stderr);
+	if (d) XCloseDisplay(d);
 	exit(1);
 }
 
@@ -168,13 +172,11 @@ applysizehints(C *c, int *x, int *y, int *w, int *h, int interact) {
 	}
 	if (c->isfloating || !lt[lt2]->ar) {
 		if (!c->hintsvalid) updatesizehints(c);
-		int bim = c->basew == c->minw && c->baseh == c->minh;
-		if (!bim) { *w -= c->basew; *h -= c->baseh; }
+		*w -= c->basew; *h -= c->baseh;
 		if (c->mina > 0 && c->maxa > 0) {
 			if      (c->maxa < (float)*w / *h) *w = (int)(*h * c->maxa + 0.5f);
 			else if (c->mina < (float)*h / *w) *h = (int)(*w * c->mina + 0.5f);
 		}
-		if (bim) { *w -= c->basew; *h -= c->baseh; }
 		if (c->incw) *w -= *w % c->incw;
 		if (c->inch) *h -= *h % c->inch;
 		*w = MAX(*w + c->basew, c->minw);
@@ -283,7 +285,7 @@ void configurerequest(XEvent *e) {
 		wc.border_width = ev->border_width; wc.sibling = ev->above; wc.stack_mode = ev->detail;
 		XConfigureWindow(d, ev->window, ev->value_mask, &wc);
 	}
-	XSync(d, False);
+	XFlush(d);
 }
 
 void destroynotify(XEvent *e) {
@@ -305,13 +307,31 @@ void enternotify(XEvent *e) {
 	if ((c = wintoclient(ev->window)) && c != s) fc(c);
 }
 
+static void detachstack(C *c) {
+	C **tc, *t;
+	for (tc = &st; *tc && *tc != c; tc = &(*tc)->snext);
+	*tc = c->snext;
+	if (c == s) {
+		for (t = st; t && !VIS(t); t = t->snext);
+		s = t;
+	}
+}
+
+static void focusclient(C *c) {
+	C **tc;
+	for (tc = &st; *tc && *tc != c; tc = &(*tc)->snext);
+	*tc = c->snext;
+	c->snext = st;
+	st = c;
+}
+
 void fc(C *c) {
 	if (!c || !VIS(c))
 		for (c = st; c && !VIS(c); c = c->snext);
 	if (s && s != c) unfocus(s, 0);
 	if (c) {
 		if (c->isurgent) seturgent(c, 0);
-		{ C **tc, *t; for (tc = &st; *tc && *tc != c; tc = &(*tc)->snext); *tc = c->snext; if (c == s) { for (t = st; t && !VIS(t); t = t->snext); s = t; } } c->snext = st; st = c;
+		focusclient(c);
 		grabbuttons(c, 1);
 		XSetWindowBorder(d, c->win, sborder);
 		setfocus(c);
@@ -446,7 +466,6 @@ void mg(Window w, XWindowAttributes *wa) {
 	at(c);
 	XChangeProperty(d, r, netatom[NetClientList], XA_WINDOW, 32,
 		PropModeAppend, (unsigned char*)&w, 1);
-	XMoveResizeWindow(d, c->win, c->x + 2*sw, c->y, c->w, c->h);
 	setclientstate(c, NormalState);
 	if (focusonopen) {
 		unfocus(s, 0);
@@ -541,7 +560,7 @@ void resizeclient(C *c, int x, int y, int w, int h) {
 	wc.border_width = c->bw;
 	XConfigureWindow(d, c->win, CWX|CWY|CWWidth|CWHeight|CWBorderWidth, &wc);
 	configure(c);
-	XSync(d, False);
+	XFlush(d);
 }
 
 void rz(const A *arg) {
@@ -554,6 +573,7 @@ void rz(const A *arg) {
 	ocx = s->x; ocy = s->y;
 	if (XGrabPointer(d, r, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
 		None, cursor[2], CurrentTime) != GrabSuccess) return;
+	{ int tx, ty; if (!getrootptr(&tx, &ty)) { XUngrabPointer(d, CurrentTime); return; } }
 	XWarpPointer(d, None, s->win, 0, 0, 0, 0, s->w + s->bw - 1, s->h + s->bw - 1);
 	do {
 		XMaskEvent(d, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
@@ -573,12 +593,10 @@ void rz(const A *arg) {
 	} while (ev.type != ButtonRelease);
 	XWarpPointer(d, None, s->win, 0, 0, 0, 0, s->w + s->bw - 1, s->h + s->bw - 1);
 	XUngrabPointer(d, CurrentTime);
-	while (XCheckMaskEvent(d, EnterWindowMask, &ev));
 }
 
 void restack(void) {
 	C *c;
-	XEvent ev;
 	XWindowChanges wc;
 	if (!s) return;
 	if (s->isfloating || !lt[lt2]->ar) XRaiseWindow(d, s->win);
@@ -591,7 +609,6 @@ void restack(void) {
 			}
 	}
 	XSync(d, False);
-	while (XCheckMaskEvent(d, EnterWindowMask, &ev));
 }
 
 void run(void) {
@@ -760,15 +777,17 @@ void seturgent(C *c, int urg) {
 }
 
 void showhide(C *c) {
-	if (!c) return;
-	if (VIS(c)) {
-		XMoveWindow(d, c->win, c->x, c->y);
-		if ((!lt[lt2]->ar || c->isfloating) && !c->isfullscreen)
-			rs(c, c->x, c->y, c->w, c->h, 0);
-		showhide(c->snext);
-	} else {
-		showhide(c->snext);
-		XMoveWindow(d, c->win, W(c) * -2, c->y);
+	C *i;
+	for (i = c; i; i = i->snext) {
+		if (VIS(i)) {
+			XMoveWindow(d, i->win, i->x, i->y);
+			if ((!lt[lt2]->ar || i->isfloating) && !i->isfullscreen)
+				rs(i, i->x, i->y, i->w, i->h, 0);
+		}
+	}
+	for (i = c; i; i = i->snext) {
+		if (!VIS(i))
+			XMoveWindow(d, i->win, W(i) * -2, i->y);
 	}
 }
 
@@ -846,7 +865,7 @@ void unfocus(C *c, int sf) {
 
 void unmanage(C *c, int destroyed) {
 	XWindowChanges wc;
-	detach(c); { C **tc, *t; for (tc = &st; *tc && *tc != c; tc = &(*tc)->snext); *tc = c->snext; if (c == s) { for (t = st; t && !VIS(t); t = t->snext); s = t; } }
+	detach(c); detachstack(c);
 	if (!destroyed) {
 		wc.border_width = c->oldbw;
 		XGrabServer(d);
