@@ -47,7 +47,7 @@ Key properties:
 ---
 
 ## Screenshots
-https://raw.githubusercontent.com/tinyopsec/swm-assets/main/screenshots/tiling.png
+![Tiling Screenshot](https://raw.githubusercontent.com/tinyopsec/swm-assets/main/screenshots/tiling.png)
 
 ---
 
