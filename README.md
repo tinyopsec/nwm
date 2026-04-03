@@ -73,6 +73,8 @@ No other runtime dependencies. `st` and `dmenu` are the default terminal and lau
 - OpenBSD (with `pledge(2)`)
 - FreeBSD (compiles; not regularly tested)
 
+*Tested on other UNIX-like systems? Let me know - open an issue or send a patch.*
+
 ---
 
 ## Installation
