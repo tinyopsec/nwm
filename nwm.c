@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <X11/keysym.h>
 #include <X11/Xatom.h>
@@ -497,12 +498,13 @@ void monocle(void) {
 
 void mv(const A *arg) {
 	(void)arg;
-	int x, y, ocx, ocy, nx, ny;
+	int x, y, ocx, ocy, nx, ny, needar = 0;
 	XEvent ev;
 	Time last = 0;
-	if (!s || s->isfullscreen) return;
+	C *c = s;
+	if (!c || c->isfullscreen) return;
 	restack();
-	ocx = s->x; ocy = s->y;
+	ocx = c->x; ocy = c->y;
 	if (XGrabPointer(d, r, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
 		None, cursor[1], CurrentTime) != GrabSuccess) return;
 	if (!getrootptr(&x, &y)) return;
@@ -516,17 +518,19 @@ void mv(const A *arg) {
 			nx = ocx + ev.xmotion.x - x;
 			ny = ocy + ev.xmotion.y - y;
 			if (abs(wx - nx) < (int)snap)                     nx = wx;
-			else if (abs(wx+ww - nx - W(s)) < (int)snap)     nx = wx+ww - W(s);
+			else if (abs(wx+ww - nx - W(c)) < (int)snap)     nx = wx+ww - W(c);
 			if (abs(wy - ny) < (int)snap)                     ny = wy;
-			else if (abs(wy+wh - ny - H(s)) < (int)snap)     ny = wy+wh - H(s);
-			if (!s->isfloating && lt[lt2]->ar
-			&& (abs(nx-s->x) > (int)snap || abs(ny-s->y) > (int)snap))
-				togglefloating(NULL);
-			if (!lt[lt2]->ar || s->isfloating)
-				rs(s, nx, ny, s->w, s->h, 1);
+			else if (abs(wy+wh - ny - H(c)) < (int)snap)     ny = wy+wh - H(c);
+			if (!c->isfloating && lt[lt2]->ar
+			&& (abs(nx-c->x) > (int)snap || abs(ny-c->y) > (int)snap)) {
+				c->isfloating = 1; needar = 1;
+			}
+			if (!lt[lt2]->ar || c->isfloating)
+				rs(c, nx, ny, c->w, c->h, 1);
 		}
 	} while (ev.type != ButtonRelease);
 	XUngrabPointer(d, CurrentTime);
+	if (needar) ar();
 }
 
 C *nexttiled(C *c) {
@@ -565,16 +569,17 @@ void resizeclient(C *c, int x, int y, int w, int h) {
 
 void rz(const A *arg) {
 	(void)arg;
-	int ocx, ocy, nw, nh;
+	int ocx, ocy, nw, nh, needar = 0;
 	XEvent ev;
 	Time last = 0;
-	if (!s || s->isfullscreen) return;
+	C *c = s;
+	if (!c || c->isfullscreen) return;
 	restack();
-	ocx = s->x; ocy = s->y;
+	ocx = c->x; ocy = c->y;
 	if (XGrabPointer(d, r, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
 		None, cursor[2], CurrentTime) != GrabSuccess) return;
 	{ int tx, ty; if (!getrootptr(&tx, &ty)) { XUngrabPointer(d, CurrentTime); return; } }
-	XWarpPointer(d, None, s->win, 0, 0, 0, 0, s->w + s->bw - 1, s->h + s->bw - 1);
+	XWarpPointer(d, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
 	do {
 		XMaskEvent(d, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
 		if (ev.type == ConfigureRequest || ev.type == Expose || ev.type == MapRequest)
@@ -582,17 +587,19 @@ void rz(const A *arg) {
 		else if (ev.type == MotionNotify) {
 			if (ev.xmotion.time - last <= 1000/60) continue;
 			last = ev.xmotion.time;
-			nw = MAX(ev.xmotion.x - ocx - 2*s->bw + 1, 1);
-			nh = MAX(ev.xmotion.y - ocy - 2*s->bw + 1, 1);
-			if (!s->isfloating && lt[lt2]->ar
-			&& (abs(nw-s->w) > (int)snap || abs(nh-s->h) > (int)snap))
-				togglefloating(NULL);
-			if (!lt[lt2]->ar || s->isfloating)
-				rs(s, s->x, s->y, nw, nh, 1);
+			nw = MAX(ev.xmotion.x - ocx - 2*c->bw + 1, 1);
+			nh = MAX(ev.xmotion.y - ocy - 2*c->bw + 1, 1);
+			if (!c->isfloating && lt[lt2]->ar
+			&& (abs(nw-c->w) > (int)snap || abs(nh-c->h) > (int)snap)) {
+				c->isfloating = 1; needar = 1;
+			}
+			if (!lt[lt2]->ar || c->isfloating)
+				rs(c, c->x, c->y, nw, nh, 1);
 		}
 	} while (ev.type != ButtonRelease);
-	XWarpPointer(d, None, s->win, 0, 0, 0, 0, s->w + s->bw - 1, s->h + s->bw - 1);
+	XWarpPointer(d, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
 	XUngrabPointer(d, CurrentTime);
+	if (needar) ar();
 }
 
 void restack(void) {
@@ -691,7 +698,7 @@ void setfullscreen(C *c, int fs) {
 }
 
 void setlayout(const A *arg) {
-	if (!arg || !arg->v || arg->v != lt[lt2]) lt2 ^= 1;
+	if (!arg || !arg->v || arg->v == lt[lt2]) lt2 ^= 1;
 	if (arg && arg->v) lt[lt2] = (L*)arg->v;
 	if (s) ar();
 }
@@ -792,7 +799,9 @@ void showhide(C *c) {
 }
 
 void spawn(const A *arg) {
-	if (fork() == 0) {
+	pid_t pid = fork();
+	if (pid == -1) return;
+	if (pid == 0) {
 		if (d) close(ConnectionNumber(d));
 		setsid();
 		execvp(((char**)arg->v)[0], (char**)arg->v);
@@ -812,19 +821,17 @@ void tile(void) {
 	if (!n) return;
 	nmv = n > (unsigned)nm ? (unsigned)nm : n;
 	ns = n > nmv ? n - nmv : 0;
-	mw = nmv && ns ? (int)(ww * mf) : ww;
+	mw = nmv && ns ? (int)((ww - 3*g) * mf) + 2*g : ww;
 	for (i = 0, c = nexttiled(cs); c; c = nexttiled(c->next), i++) {
 		if (i < nmv) {
-			int bh  = (wh - (int)(nmv + 1) * g) / (int)nmv;
-			int y0  = wy + g + (int)i * (bh + g);
-			int h   = bh;
-			rs(c, wx + g, y0, mw - 2*c->bw - 2*g, h - 2*c->bw, 0);
+			int ch  = (wh - (int)(nmv + 1) * g) / (int)nmv;
+			int y0  = wy + g + (int)i * (ch + g);
+			rs(c, wx + g, y0, mw - 2*c->bw - 2*g, ch - 2*c->bw, 0);
 		} else if (ns > 0) {
 			unsigned int si = i - nmv;
-			int bh  = (wh - (int)(ns + 1) * g) / (int)ns;
-			int y0  = wy + g + (int)si * (bh + g);
-			int h   = bh;
-			rs(c, wx + mw + g, y0, ww - mw - 2*c->bw - 2*g, h - 2*c->bw, 0);
+			int ch  = (wh - (int)(ns + 1) * g) / (int)ns;
+			int y0  = wy + g + (int)si * (ch + g);
+			rs(c, wx + mw + g, y0, ww - mw - 2*c->bw - 2*g, ch - 2*c->bw, 0);
 		}
 	}
 }
@@ -902,6 +909,7 @@ void updateclientlist(void) {
 void updatenumlockmask(void) {
 	unsigned int i, j;
 	XModifierKeymap *mm = XGetModifierMapping(d);
+	if (!mm) return;
 	numlockmask = 0;
 	for (i = 0; i < 8; i++)
 		for (j = 0; j < (unsigned)mm->max_keypermod; j++)
