@@ -47,13 +47,7 @@ Key properties:
 ---
 
 ## Screenshots
-
-<!-- Add screenshots or a demo GIF to this section. -->
-<!-- Suggested alt-text for accessibility and SEO: -->
-<!-- ![swm tiling window manager on Arch Linux with Nord color theme and two terminals tiled in master/stack layout](screenshots/swm-tiling.png) -->
-<!-- ![swm monocle layout showing a single maximized window with minimal border](screenshots/swm-monocle.png) -->
-
-*Screenshots not yet added. To contribute one, open a pull request against this file.*
+https://raw.githubusercontent.com/tinyopsec/swm-assets/main/screenshots/tiling.png
 
 ---
 
