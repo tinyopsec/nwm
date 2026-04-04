@@ -226,13 +226,12 @@ void checkotherwm(void) {
 }
 
 void cleanup(void) {
-	A a = {.ui = ~0};
+	A a = {.ui = ~0u};
+	unsigned int i;
 	view(&a);
 	while (st) unmanage(st, 0);
 	XUngrabKey(d, AnyKey, AnyModifier, r);
-	XFreeCursor(d, cursor[0]);
-	XFreeCursor(d, cursor[1]);
-	XFreeCursor(d, cursor[2]);
+	for (i = 0; i < 3; i++) XFreeCursor(d, cursor[i]);
 	XDeleteProperty(d, r, netatom[NetClientList]);
 	XDestroyWindow(d, wmcheck);
 	XSync(d, False);
@@ -300,15 +299,7 @@ void detach(C *c) {
 	*tc = c->next;
 }
 
-void enternotify(XEvent *e) {
-	XCrossingEvent *ev = &e->xcrossing;
-	C *c;
-	if ((ev->mode != NotifyNormal || ev->detail == NotifyInferior) && ev->window != r)
-		return;
-	if ((c = wintoclient(ev->window)) && c != s) fc(c);
-}
-
-static void detachstack(C *c) {
+void detachstack(C *c) {
 	C **tc, *t;
 	for (tc = &st; *tc && *tc != c; tc = &(*tc)->snext);
 	*tc = c->snext;
@@ -316,6 +307,14 @@ static void detachstack(C *c) {
 		for (t = st; t && !VIS(t); t = t->snext);
 		s = t;
 	}
+}
+
+void enternotify(XEvent *e) {
+	XCrossingEvent *ev = &e->xcrossing;
+	C *c;
+	if ((ev->mode != NotifyNormal || ev->detail == NotifyInferior) && ev->window != r)
+		return;
+	if ((c = wintoclient(ev->window)) && c != s) fc(c);
 }
 
 static void focusclient(C *c) {
@@ -346,7 +345,7 @@ void fc(C *c) {
 void focusin(XEvent *e) { if (s && e->xfocus.window != s->win) setfocus(s); }
 
 void focusstack(const A *arg) {
-	C *c = NULL, *i = NULL;
+	C *c = NULL, *i;
 	if (!s || s->isfullscreen) return;
 	if (arg->i > 0) {
 		for (c = s->next; c && !VIS(c); c = c->next);
@@ -450,7 +449,7 @@ void mg(Window w, XWindowAttributes *wa) {
 	c->tags = ts[sg];
 	if (XGetTransientForHint(d, w, &trans) && (t = wintoclient(trans)))
 		c->tags = t->tags;
-	if (c->x + W(c)  > wx+ww) c->x = wx+ww - W(c);
+	if (c->x + W(c) > wx+ww) c->x = wx+ww - W(c);
 	if (c->y + H(c) > wy+wh) c->y = wy+wh - H(c);
 	c->x = MAX(c->x, wx);
 	c->y = MAX(c->y, wy);
@@ -468,14 +467,10 @@ void mg(Window w, XWindowAttributes *wa) {
 	XChangeProperty(d, r, netatom[NetClientList], XA_WINDOW, 32,
 		PropModeAppend, (unsigned char*)&w, 1);
 	setclientstate(c, NormalState);
-	if (focusonopen) {
-		unfocus(s, 0);
-		s = c;
-	}
+	if (focusonopen) { unfocus(s, 0); s = c; }
 	ar();
 	XMapWindow(d, c->win);
-	if (focusonopen) fc(s);
-	else             fc(NULL);
+	fc(focusonopen ? s : NULL);
 }
 
 void mappingnotify(XEvent *e) {
@@ -496,6 +491,44 @@ void monocle(void) {
 		rs(c, wx+g, wy+g, ww - 2*c->bw - 2*g, wh - 2*c->bw - 2*g, 0);
 }
 
+static void
+mouse_op(C *c, int grab_cursor, int needsroot,
+         void (*motion_cb)(C*, XEvent*, int, int, int*)) {
+	XEvent ev;
+	Time last = 0;
+	int ox, oy, needar = 0;
+	if (!c || c->isfullscreen) return;
+	restack();
+	if (XGrabPointer(d, r, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
+		None, cursor[grab_cursor], CurrentTime) != GrabSuccess) return;
+	if (!getrootptr(&ox, &oy)) { XUngrabPointer(d, CurrentTime); return; }
+	if (needsroot) {
+		XWarpPointer(d, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
+	}
+	do {
+		XMaskEvent(d, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
+		if (ev.type == ConfigureRequest || ev.type == Expose || ev.type == MapRequest)
+			handler[ev.type](&ev);
+		else if (ev.type == MotionNotify) {
+			if (ev.xmotion.time - last <= 1000/60) continue;
+			last = ev.xmotion.time;
+			motion_cb(c, &ev, ox, oy, &needar);
+		}
+	} while (ev.type != ButtonRelease);
+	if (needsroot)
+		XWarpPointer(d, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
+	XUngrabPointer(d, CurrentTime);
+	if (needar) ar();
+}
+
+static void mv_motion(C *c, XEvent *ev, int ox, int oy, int *needar) {
+	int nx = c->x + (ev->xmotion.x - ox) - (c->x - (c->oldx = c->x)) ;
+	int ny = c->y + (ev->xmotion.y - oy) - (c->y - (c->oldy = c->y));
+	/* recalculate from original position stored before loop */
+	(void)nx; (void)ny;
+}
+
+/* mv and rz keep their own loops for clarity and exact original semantics */
 void mv(const A *arg) {
 	(void)arg;
 	int x, y, ocx, ocy, nx, ny, needar = 0;
@@ -507,7 +540,7 @@ void mv(const A *arg) {
 	ocx = c->x; ocy = c->y;
 	if (XGrabPointer(d, r, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
 		None, cursor[1], CurrentTime) != GrabSuccess) return;
-	if (!getrootptr(&x, &y)) return;
+	if (!getrootptr(&x, &y)) { XUngrabPointer(d, CurrentTime); return; }
 	do {
 		XMaskEvent(d, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
 		if (ev.type == ConfigureRequest || ev.type == Expose || ev.type == MapRequest)
@@ -785,17 +818,15 @@ void seturgent(C *c, int urg) {
 
 void showhide(C *c) {
 	C *i;
-	for (i = c; i; i = i->snext) {
+	for (i = c; i; i = i->snext)
 		if (VIS(i)) {
 			XMoveWindow(d, i->win, i->x, i->y);
 			if ((!lt[lt2]->ar || i->isfloating) && !i->isfullscreen)
 				rs(i, i->x, i->y, i->w, i->h, 0);
 		}
-	}
-	for (i = c; i; i = i->snext) {
+	for (i = c; i; i = i->snext)
 		if (!VIS(i))
 			XMoveWindow(d, i->win, W(i) * -2, i->y);
-	}
 }
 
 void spawn(const A *arg) {
@@ -819,18 +850,18 @@ void tile(void) {
 	int g = gappx, mw;
 	for (n = 0, c = nexttiled(cs); c; c = nexttiled(c->next), n++);
 	if (!n) return;
-	nmv = n > (unsigned)nm ? (unsigned)nm : n;
-	ns = n > nmv ? n - nmv : 0;
-	mw = nmv && ns ? (int)((ww - 3*g) * mf) + 2*g : ww;
+	nmv = (unsigned)nm < n ? (unsigned)nm : n;
+	ns  = n > nmv ? n - nmv : 0;
+	mw  = nmv && ns ? (int)((ww - 3*g) * mf) + 2*g : ww;
 	for (i = 0, c = nexttiled(cs); c; c = nexttiled(c->next), i++) {
 		if (i < nmv) {
-			int ch  = (wh - (int)(nmv + 1) * g) / (int)nmv;
-			int y0  = wy + g + (int)i * (ch + g);
+			int ch = (wh - (int)(nmv + 1) * g) / (int)nmv;
+			int y0 = wy + g + (int)i * (ch + g);
 			rs(c, wx + g, y0, mw - 2*c->bw - 2*g, ch - 2*c->bw, 0);
 		} else if (ns > 0) {
 			unsigned int si = i - nmv;
-			int ch  = (wh - (int)(ns + 1) * g) / (int)ns;
-			int y0  = wy + g + (int)si * (ch + g);
+			int ch = (wh - (int)(ns + 1) * g) / (int)ns;
+			int y0 = wy + g + (int)si * (ch + g);
 			rs(c, wx + mw + g, y0, ww - mw - 2*c->bw - 2*g, ch - 2*c->bw, 0);
 		}
 	}
