@@ -1,34 +1,29 @@
 VERSION  = 1.0
+PREFIX   = /usr/local
 
-PREFIX  ?= /usr/local
-DESTDIR ?=
+X11INC   = /usr/X11R6/include
+X11LIB   = /usr/X11R6/lib
 
-CC      ?= cc
-CFLAGS  ?= -std=c99 -pedantic -Wall -Os
-CPPFLAGS = -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE -DVERSION=\"$(VERSION)\"
-LDFLAGS ?=
-LDLIBS  ?= -lX11
+CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os \
+           -I$(X11INC) -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L \
+           -DVERSION=\"$(VERSION)\"
+LDFLAGS  = -L$(X11LIB) -lX11
 
-BIN  = swm
-OBJS = swm.o
+CC       = cc
 
-all: $(BIN)
+all: swm
 
-$(BIN): $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
-
-swm.o: swm.c swm.h
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c swm.c
+swm: swm.c swm.h
+	$(CC) $(CFLAGS) -o $@ swm.c $(LDFLAGS)
 
 clean:
-	rm -f $(BIN) $(OBJS)
+	rm -f swm
 
 install: all
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
-	cp $(BIN) $(DESTDIR)$(PREFIX)/bin/$(BIN)
-	chmod 755 $(DESTDIR)$(PREFIX)/bin/$(BIN)
+	install -m 755 swm $(DESTDIR)$(PREFIX)/bin/swm
 
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/bin/$(BIN)
+	rm -f $(DESTDIR)$(PREFIX)/bin/swm
 
 .PHONY: all clean install uninstall
