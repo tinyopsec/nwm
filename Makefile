@@ -1,29 +1,34 @@
-VERSION  = 1.0
-PREFIX   = /usr/local
+.POSIX:
 
-X11INC   = /usr/X11R6/include
-X11LIB   = /usr/X11R6/lib
+NAME     = <NAME>
+SRCS     = <LIST OF .c FILES>
+HDRS     = <LIST OF .h FILES>
+OBJS     = $(SRCS:.c=.o)
 
-CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os \
-           -I$(X11INC) -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L \
-           -DVERSION=\"$(VERSION)\"
-LDFLAGS  = -L$(X11LIB) -lX11
+PREFIX   ?= /usr/local
+CC       ?= c99
+CFLAGS   ?= -O2 -Wall
+CPPFLAGS ?= 
+LDFLAGS  ?= 
+LDLIBS   ?= <e.g. -lX11>
 
-CC       = cc
+all: $(NAME)
 
-all: swm
+$(NAME): $(OBJS)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
 
-swm: swm.c swm.h
-	$(CC) $(CFLAGS) -o $@ swm.c $(LDFLAGS)
+.c.o:
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
 
 clean:
-	rm -f swm
+	rm -f $(NAME) $(OBJS)
 
 install: all
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
-	install -m 755 swm $(DESTDIR)$(PREFIX)/bin/swm
+	cp -f $(NAME) $(DESTDIR)$(PREFIX)/bin/$(NAME)
+	chmod 755 $(DESTDIR)$(PREFIX)/bin/$(NAME)
 
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/bin/swm
+	rm -f $(DESTDIR)$(PREFIX)/bin/$(NAME)
 
 .PHONY: all clean install uninstall
