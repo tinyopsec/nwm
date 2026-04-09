@@ -3,7 +3,7 @@
 > **Note:** Project was renamed from `nwm` to `swm` (Simple Window Manager) in April 2026.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/tinyopsec/swm-assets/main/screenshots/monocle.png" alt="Monocle logo" width="40%">
+  <img src="https://raw.githubusercontent.com/tinyopsec/assets/main/swm/swm.png" alt="Monocle logo" width="40%">
 </p>
 <div align="center">
 
@@ -54,7 +54,7 @@ Key properties:
 ---
 
 ## Screenshots
-![Tiling Screenshot](https://raw.githubusercontent.com/tinyopsec/swm-assets/main/screenshots/tiling.png)
+![Tiling Screenshot](https://raw.githubusercontent.com/tinyopsec/assets/main/swm/screenshot.png)
 
 ---
 
