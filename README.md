@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![C99](https://img.shields.io/badge/C-C99%20%2F%20POSIX-lightgrey.svg)]()
-[![LOC](https://img.shields.io/badge/source-under%20250%20lines-brightgreen.svg)]()
+[![LOC](https://img.shields.io/badge/source-under%201000%20lines-brightgreen.svg)]()
 [![Issues](https://img.shields.io/github/issues/tinyopsec/tmenu.svg)](https://github.com/tinyopsec/swm/issues)
 [![Stars](https://img.shields.io/github/stars/tinyopsec/tmenu.svg)](https://github.com/tinyopsec/swm/stargazers)
 
