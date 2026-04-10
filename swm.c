@@ -172,7 +172,8 @@ applysizehints(C *c, int *x, int *y, int *w, int *h, int interact) {
 		if (*x + *w + bw2 <= wx)     *x = wx;
 		if (*y + *h + bw2 <= wy)     *y = wy;
 	}
-	if (c->isfloating || !lt[lt2]->ar) {
+	int noar = c->isfloating || !lt[lt2]->ar;
+	if (noar) {
 		if (!c->hintsvalid) updatesizehints(c);
 		*w -= c->basew; *h -= c->baseh;
 		if (c->mina > 0 && c->maxa > 0 && *w > 0 && *h > 0) {
@@ -697,9 +698,10 @@ void setfullscreen(C *c, int fs) {
 }
 
 void setlayout(const A *arg) {
-	if (!arg || !arg->v)        { lt2 ^= 1; }
-	else if (arg->v != lt[lt2]) { lt[lt2] = (const L*)arg->v; }
-	else                        { lt2 ^= 1; lt[lt2] = (const L*)arg->v; }
+	if (arg && arg->v) {
+		if (arg->v == lt[lt2]) lt2 ^= 1;
+		lt[lt2] = (const L*)arg->v;
+	} else lt2 ^= 1;
 	if (s) ar();
 }
 
@@ -1007,9 +1009,6 @@ int main(int argc, char *argv[]) {
 	if (!(d = XOpenDisplay(NULL))) die("nwm: cannot open display");
 	checkotherwm();
 	setup();
-#ifdef __OpenBSD__
-	if (pledge("stdio rpath proc exec", NULL) == -1) die("nwm: pledge");
-#endif
 	scan(); run(); cleanup();
 	XCloseDisplay(d);
 	return 0;
