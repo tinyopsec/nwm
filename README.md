@@ -90,7 +90,7 @@ No other runtime dependencies. `st` and `dmenu` are the default terminal and lau
 **Supported platforms:**
 
 - Linux (tested on Arch, Void, Debian)
-- OpenBSD (with `pledge(2)`)
+- OpenBSD (compiles; not regularly tested)
 - FreeBSD (compiles; not regularly tested)
 
 Tested on other UNIX-like systems? Open an issue or send a patch.
@@ -267,9 +267,7 @@ Replace with any terminal or launcher: `"alacritty"`, `"foot"`, `"rofi"`, etc.
 - Deterministic tiling algorithm with no pixel drift or remainder accumulation
 - Built-in gap support via `gappx` without requiring a patch
 - Two-slot XOR system for both layouts and tags — `Mod+Tab` is consistent
-- OpenBSD `pledge(2)` in the default build
 
----
 
 ## Contributing
 
