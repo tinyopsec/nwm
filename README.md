@@ -62,13 +62,13 @@ For display managers, place a session file at `/usr/share/xsessions/nwm.desktop`
 
 | Area | dwm | nwm |
 |---|---|---|
-| Lines of code | ~2000 | ~1142+-50 (fits in one reading session) |
-| RAM at idle | ~2-3 MB | ~1,63 on my pc MB (leaner process image) |
-| Tiling arithmetic | Can accumulate pixel remainder | Integer division, no drift (ig) |
+| Lines of code | ~2901 total (.h|.c) | ~1374 (fits in one reading session ) |
+| RAM at idle | ~5–15 MB | ~3-8 MB on my pc (leaner process image) |
+| Tiling arithmetic | Can accumulate pixel remainder | Integer division, no drift |
 | Gap support | Requires patching | Built in via `gappx` |
 | `Mod+Tab` behavior | Inconsistent across patches | Deterministic XOR for both tags and layouts |
 | OpenBSD `pledge(2)` | Not supported | Supported natively |
-| POSIX compliance | Uses GNU extensions in places | Strict POSIX C99 throughout (Maybe) |
+| POSIX compliance | Uses GNU extensions in places | Strict POSIX C99 throughout |
 | Status bar | Built-in bar, requires patching to remove | No bar; use any external panel or none |
 | Config complexity | ~100+-50 lines of config + patch management | Single flat `nwm.h`, no patch stack |
 | Audit surface | Large: bar, fonts, drawing code | Minimal: window management only |
@@ -314,77 +314,7 @@ Tags are bitmasks. Each client carries a tag bitmask; the active view is a bitma
 
 Layout and tag history both use a two-slot XOR system. `nwm` keeps the current and previous values in a two-element array and flips an index bit on each change. `Mod+Tab` flips the index back, always returning to whatever was active before, whether that was a layout or a tag view.
 
-```mermaid
-flowchart TD
-    start([Start]) --> chkwm[check for another WM]
-    chkwm --> setup[setup: init display, atoms, colors,\ngrab keys, scan existing windows]
-    setup --> run[run: main event loop]
-    run --> next{XNextEvent}
-    next -->|KeyPress| kp[KeyPress handler\nkp]
-    next -->|ButtonPress| bp[ButtonPress handler\nbp]
-    next -->|MapRequest| mapreq[MapRequest handler\nmapreq]
-    next -->|ConfigureRequest| cfgreq[ConfigureRequest handler\ncfgreq]
-    next -->|ClientMessage| cmsg[ClientMessage handler\ncmsg]
-    next -->|DestroyNotify| destnot[DestroyNotify handler\ndestnot]
-    next -->|EnterNotify| entnot[EnterNotify handler\nentnot]
-    next -->|PropertyNotify| propnot[PropertyNotify handler\npropnot]
-    next -->|UnmapNotify| unmapnt[UnmapNotify handler\nunmapnt]
-    next -->|FocusIn| fcin[FocusIn handler\nfcin]
-    next -->|MappingNotify| mapnot[MappingNotify handler\nmapnot]
-    next -->|Other| run
-    kp --> keyfn{execute key action}
-    keyfn --> spawn(spawn process)
-    keyfn --> killcl(kill client)
-    keyfn --> quit(quit WM)
-    keyfn --> view(view / toggle view)
-    keyfn --> tag(tag client)
-    keyfn --> tgltag(toggle tag on client)
-    keyfn --> fcs(change focus)
-    keyfn --> incnm(change master count)
-    keyfn --> setmf(set master factor)
-    keyfn --> setlt(set layout)
-    keyfn --> zoom(zoom client)
-    keyfn --> tglfs(toggle fullscreen)
-    keyfn --> tglfl(toggle floating)
-    bp --> btnfn{execute button action}
-    btnfn --> mv(move client)
-    btnfn --> tglfl
-    btnfn --> rz(resize client)
-    mapreq --> mg[mg: create Client struct,\nconfigure, add to list,\nmap window, arrange]
-    cmsg --> cmsg_act{handle client message}
-    cmsg_act --> setfs(set fullscreen state)
-    cmsg_act --> seturg(set urgent state)
-    destnot --> unmng[unmng: remove client,\nfree, update lists, arrange]
-    entnot --> fc[fc: focus client under pointer]
-    fcin --> setfocus[setfocus: restore input focus]
-    propnot --> prop_act{update properties}
-    prop_act --> updwmh(update WM hints)
-    prop_act --> updtype(update window type)
-    prop_act --> seturg
-    unmapnt --> unmng
-    mapnot --> grabkeys(grabkeys: reacquire key binds)
-    mg --> ar
-    unmng --> ar
-    fc --> ar
-    setfs --> ar
-    fcs --> ar
-    view --> ar
-    tag --> ar
-    tgltag --> ar
-    incnm --> ar
-    setmf --> ar
-    setlt --> ar
-    zoom --> ar
-    tglfl --> ar
-    mv --> ar
-    rz --> ar
-    spawn -.->|fork+exec| app([external app])
-    ar[ar: rearrange layout\ntile / monocle]
-    ar --> shide[shide: hide/show/resize clients]
-    shide --> rst[rst: restack windows]
-    run -->|running = 0| cleanup[cleanup: free clients,\nungrab keys, destroy windows]
-    cleanup --> stop([Stop])
-```
+It’s hard to explain in words, but you can grasp the entire code structure if you spend an hour reading the code.
 
 ---
 
@@ -402,38 +332,6 @@ Bug reports and patches are welcome via [GitHub Issues](https://github.com/tinyo
 Optional features behind `#ifdef` or compile-time constants are considered. Core event loop changes are reviewed carefully.
 
 </details>
-
-### Contributors
-
-<a href="https://github.com/tinyopsec/nwm/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=tinyopsec/nwm" />
-</a>
-
-### Activity
-
-![Repobeats](https://repobeats.axiom.co/api/embed/tinyopsec/nwm.svg "Repobeats analytics image")
-
----
-
-## Trophies
-
-<p align="center">
-  <img src="https://github-profile-trophy.vercel.app/?username=tinyopsec&theme=nord&no-frame=true&no-bg=true&column=6&margin-w=4" alt="trophies" />
-</p>
-
----
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=tinyopsec%2Fnwm&type=date&legend=top-left">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=tinyopsec/nwm&type=date&theme=dark&legend=top-left" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=tinyopsec/nwm&type=date&legend=top-left" />
-    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=tinyopsec/nwm&type=date&legend=top-left" width="720" />
-  </picture>
-</a>
-
----
 
 ## Related
 
@@ -463,7 +361,7 @@ Optional features behind `#ifdef` or compile-time constants are considered. Core
 <details>
 <summary>Thanks / Resources used</summary>
 
-Thanks to friends for their help, and I also thank these resources:
+Thanks to my friends for their help, and I also thank these resources:
 shields.io
 capsule-render from vercel (Very beautiful) and
 demolab.com
@@ -471,7 +369,6 @@ contrib.rocks
 repobeats.axiom.co
 star-history.com
 github-profile-trophy
-Mermaid (Thanks to my friend for this work)
 Ross Maloney for Fundamentals of Xlib Programming
 by Examples
 https://www.linux.co.cr/desktops/review/acrobat/030103.pdf
