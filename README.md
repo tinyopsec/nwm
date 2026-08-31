@@ -62,7 +62,7 @@ For display managers, place a session file at `/usr/share/xsessions/nwm.desktop`
 
 | Area | dwm | nwm |
 |---|---|---|
-| Lines of code | ~2901 total (.h|.c) | ~1374 (fits in one reading session ) |
+| Lines of code | ~2901 total (.h /.c) | ~1374 (fits in one reading session ) |
 | RAM at idle | ~5–15 MB | ~3-8 MB on my pc (leaner process image) |
 | Tiling arithmetic | Can accumulate pixel remainder | Integer division, no drift |
 | Gap support | Requires patching | Built in via `gappx` |
