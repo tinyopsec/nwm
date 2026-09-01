@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/X11%20%2F%20Xlib-33ACB4?style=flat&label=display&labelColor=0E2426&logo=x.org&logoColor=33ACB4" />
   <img src="https://img.shields.io/badge/make-46B9B4?style=flat&label=build&labelColor=0E2426&logo=gnu&logoColor=46B9B4" />
   <img src="https://img.shields.io/badge/AUR-59C6B5?style=flat&label=package&labelColor=0E2426&logo=archlinux&logoColor=59C6B5" />
-  <img src="https://img.shields.io/badge/%7E1%20MB%20RAM-6CD4B5?style=flat&label=idle&labelColor=0E2426&logo=speedtest&logoColor=6CD4B5" />
+  <img src="https://img.shields.io/badge/%7E3%20MB%20RAM-6CD4B5?style=flat&label=idle&labelColor=0E2426&logo=speedtest&logoColor=6CD4B5" />
   <img src="https://img.shields.io/badge/EWMH%20%2F%20ICCCM-7EE1B5?style=flat&label=spec&labelColor=0E2426&logo=xdg&logoColor=7EE1B5" />
 </p>
 
