@@ -1,3 +1,4 @@
+/* TL;DR please */
 #define _POSIX_C_SOURCE 200809L
 
 #include <signal.h>
@@ -18,19 +19,21 @@
 int pledge(const char *, const char *);
 #endif
 
-#define VERSION        "nwm-1.5.1"
-#define BUTTONMASK     (ButtonPressMask|ButtonReleaseMask)
-#define MOUSEMASK      (BUTTONMASK|PointerMotionMask)
-#define CLEANMASK(m)   ((m) & ~(numlockmask|LockMask) & \
-                        (ShiftMask|ControlMask|Mod1Mask|Mod2Mask| \
-                         Mod3Mask|Mod4Mask|Mod5Mask))
-#define VIS(c)         ((c)->tags & tagsel[sel_group])
-#define W(c)           ((c)->w + ((c)->bw << 1))
-#define H(c)           ((c)->h + ((c)->bw << 1))
-#define LEN(x)         (sizeof(x)/sizeof(*(x)))
-#define TM             ((1u << LEN(tags)) - 1)
-#define MAX(a,b)       ((a) > (b) ? (a) : (b))
-#define MIN(a,b)       ((a) < (b) ? (a) : (b))
+#define VERSION         "nwm-1.5.2"
+#define BUTTONMASK      (ButtonPressMask|ButtonReleaseMask)
+#define MOUSEMASK       (BUTTONMASK|PointerMotionMask)
+
+#define CLEANMASK(m)    ((m) & ~(numlockmask|LockMask) & \
+                         (ShiftMask|ControlMask|Mod1Mask|Mod2Mask| \
+                          Mod3Mask|Mod4Mask|Mod5Mask))
+
+#define VIS(c)          ((c)->tags & tagsel[sel_group])
+#define W(c)            ((c)->w + ((c)->bw << 1))
+#define H(c)            ((c)->h + ((c)->bw << 1))
+#define LEN(x)          (sizeof(x)/sizeof(*(x)))
+#define TM              ((1u << LEN(tags)) - 1)
+#define MAX(a,b)        ((a) > (b) ? (a) : (b))
+#define MIN(a,b)        ((a) < (b) ? (a) : (b))
 
 /* Throttle pointer motion events during move/resize. */
 #define MOTION_THROTTLE_MS 16
@@ -186,6 +189,22 @@ static void pertagrestore(unsigned int);
 static void pertagsave(unsigned int);
 static int applysizehints(C *, int *, int *, int *, int *, int);
 
+#include "nwm.h"
+
+#if NWM_WITH_GAPS
+#define GAP() (gappx)
+#else
+#define GAP() 0
+#endif
+
+#if NWM_WITH_BORDERS
+#define DEFAULT_BORDERPX borderpx
+#define BORDER(c, pix) XSetWindowBorder(display, (c)->win, (pix))
+#else
+#define DEFAULT_BORDERPX 0
+#define BORDER(c, pix) ((void)0)
+#endif
+
 static Display *display;
 static Window root, wmcheck_win;
 static int screen_idx, screen_w, screen_h;
@@ -198,9 +217,16 @@ static Cursor cursor[3];
 static Atom wmatom[WMLast], netatom[NetLast];
 static C *clients, *sel, *stack;
 static const L *cur_layouts[2];
-static unsigned long color_norm, color_sel, color_urg;
 static int (*xerrorxlib)(Display *, XErrorEvent *);
 static Time last_time = CurrentTime;
+
+#if NWM_WITH_BORDERS
+static unsigned long color_norm, color_sel, color_urg;
+#endif
+
+#if NWM_WITH_PERTAG
+static PT per_tag[LEN(tags)];
+#endif
 
 static void (*handler[LASTEvent])(XEvent *) = {
 	[ButtonPress]      = bp,
@@ -215,10 +241,6 @@ static void (*handler[LASTEvent])(XEvent *) = {
 	[PropertyNotify]   = propertynotify,
 	[UnmapNotify]      = unmapnotify,
 };
-
-#include "nwm.h"
-
-static PT per_tag[LEN(tags)];
 
 static void
 die(const char *fmt, ...)
@@ -239,6 +261,7 @@ die(const char *fmt, ...)
 static void
 pertagupdate(int tag_idx)
 {
+#if NWM_WITH_PERTAG
 	if (tag_idx < 0 || tag_idx >= (int)LEN(tags))
 		return;
 
@@ -247,24 +270,34 @@ pertagupdate(int tag_idx)
 	per_tag[tag_idx].li = layout_sel;
 	per_tag[tag_idx].mf = master_factor;
 	per_tag[tag_idx].nm = master_count;
+#else
+	(void)tag_idx;
+#endif
 }
 
 static int
 firsttag(unsigned int tag_mask)
 {
+#if NWM_WITH_PERTAG
 	int i;
 
-	for (i = 0; i < (int)LEN(tags); i++)
+	for (i = 0; i < (int)LEN(tags); i++) {
 		if (tag_mask & (1u << i))
 			return i;
+	}
 
 	return 0;
+#else
+	(void)tag_mask;
+	return 0;
+#endif
 }
 
 /* For multi-tag views, restore state from the lowest numbered visible tag. */
 static void
 pertagrestore(unsigned int tag_mask)
 {
+#if NWM_WITH_PERTAG
 	int i;
 
 	for (i = 0; i < (int)LEN(tags); i++) {
@@ -277,16 +310,24 @@ pertagrestore(unsigned int tag_mask)
 			return;
 		}
 	}
+#else
+	(void)tag_mask;
+#endif
 }
 
 static void
 pertagsave(unsigned int tag_mask)
 {
+#if NWM_WITH_PERTAG
 	int i;
 
-	for (i = 0; i < (int)LEN(tags); i++)
+	for (i = 0; i < (int)LEN(tags); i++) {
 		if (tag_mask & (1u << i))
 			pertagupdate(i);
+	}
+#else
+	(void)tag_mask;
+#endif
 }
 
 static int
@@ -461,7 +502,7 @@ clientmsg(XEvent *e)
 		                 (ev->data.l[0] == 2 && !c->isfullscreen));
 	} else if (ev->message_type == netatom[NetActiveWindow] &&
 	           c != sel && !c->isurgent) {
-	/* Avoid focus stealing: activation requests become urgency hints. */
+		/* Avoid focus stealing: activation requests become urgency hints. */
 		seturgency(c, 1);
 	}
 }
@@ -507,7 +548,11 @@ configurerequest(XEvent *e)
 	}
 
 	if (ev->value_mask & CWBorderWidth) {
+#if NWM_WITH_BORDERS
 		c->bw = ev->border_width;
+#else
+		c->bw = 0;
+#endif
 		XSetWindowBorderWidth(display, c->win, c->bw);
 		ar();
 	}
@@ -517,14 +562,17 @@ configurerequest(XEvent *e)
 			c->oldx = c->x;
 			c->x = ev->x;
 		}
+
 		if (ev->value_mask & CWY) {
 			c->oldy = c->y;
 			c->y = ev->y;
 		}
+
 		if (ev->value_mask & CWWidth) {
 			c->oldw = c->w;
 			c->w = ev->width;
 		}
+
 		if (ev->value_mask & CWHeight) {
 			c->oldh = c->h;
 			c->h = ev->height;
@@ -532,6 +580,7 @@ configurerequest(XEvent *e)
 
 		if (VIS(c)) {
 			XMoveResizeWindow(display, c->win, c->x, c->y, c->w, c->h);
+
 			if (c->isfloating)
 				XRaiseWindow(display, c->win);
 		} else {
@@ -577,6 +626,7 @@ detachstack(C *c)
 	if (c == sel) {
 		for (t = stack; t && !VIS(t); t = t->snext)
 			;
+
 		sel = t;
 	}
 }
@@ -596,8 +646,10 @@ enternotify(XEvent *e)
 
 	if (!c || c == sel)
 		return;
+
 	if (sel && sel->isfullscreen)
 		return;
+
 	if (c->isfullscreen)
 		return;
 
@@ -618,9 +670,10 @@ focus(C *c)
 {
 	C **pp;
 
-	if (!c || !VIS(c))
+	if (!c || !VIS(c)) {
 		for (c = stack; c && !VIS(c); c = c->snext)
 			;
+	}
 
 	if (sel && sel != c)
 		unfocus(sel);
@@ -631,6 +684,7 @@ focus(C *c)
 
 		for (pp = &stack; *pp && *pp != c; pp = &(*pp)->snext)
 			;
+
 		if (*pp)
 			*pp = c->snext;
 
@@ -638,7 +692,7 @@ focus(C *c)
 		stack = c;
 
 		grabbuttons(c, 1);
-		XSetWindowBorder(display, c->win, color_sel);
+		BORDER(c, color_sel);
 		setfocus(c);
 	} else {
 		XSetInputFocus(display, root, RevertToPointerRoot, last_time);
@@ -712,6 +766,7 @@ getatom(C *c, Atom prop)
 	                       &type, &fmt, &n, &rem, &p) == Success && p) {
 		if (type == XA_ATOM && n > 0)
 			memcpy(&a, p, sizeof(Atom));
+
 		XFree(p);
 	}
 
@@ -742,6 +797,7 @@ getstate(Window w)
 	                       &p) == Success) {
 		if (n && fmt == 32 && p)
 			memcpy(&res, p, sizeof(long));
+
 		if (p)
 			XFree(p);
 	}
@@ -791,6 +847,8 @@ grabkeys(void)
 	unsigned int i, j;
 	KeyCode code;
 
+	updatenumlockmask();
+
 	mods[0] = 0;
 	mods[1] = LockMask;
 
@@ -799,7 +857,6 @@ grabkeys(void)
 		mods[nmods++] = numlockmask | LockMask;
 	}
 
-	updatenumlockmask();
 	XUngrabKey(display, AnyKey, AnyModifier, root);
 
 	for (i = 0; i < LEN(keys); i++) {
@@ -883,14 +940,17 @@ applyrules(C *c)
 		    (!rule->instance || (ch.res_name && !strcmp(ch.res_name, rule->instance))) &&
 		    (!rule->title || (title[0] && strstr(title, rule->title)))) {
 			rule_floating = rule->isfloating;
+
 			if (rule->tags)
 				c->tags = rule->tags & TM;
+
 			break;
 		}
 	}
 
 	if (ch.res_class)
 		XFree(ch.res_class);
+
 	if (ch.res_name)
 		XFree(ch.res_name);
 
@@ -925,10 +985,11 @@ manage(Window w, XWindowAttributes *wa)
 	    (trans_client = wintoclient(trans)))
 		c->tags = trans_client->tags;
 
-	c->bw = borderpx;
+	c->bw = DEFAULT_BORDERPX;
 
 	if (c->x + W(c) > win_area_x + win_area_w)
 		c->x = win_area_x + win_area_w - W(c);
+
 	if (c->y + H(c) > win_area_y + win_area_h)
 		c->y = win_area_y + win_area_h - H(c);
 
@@ -937,7 +998,7 @@ manage(Window w, XWindowAttributes *wa)
 
 	wc.border_width = c->bw;
 	XConfigureWindow(display, w, CWBorderWidth, &wc);
-	XSetWindowBorder(display, w, color_norm);
+	BORDER(c, color_norm);
 	configurenotify(c);
 
 	c->isfloating = c->oldstate = (trans != None) || c->isfixed;
@@ -949,6 +1010,7 @@ manage(Window w, XWindowAttributes *wa)
 
 	XSelectInput(display, w, EnterWindowMask | FocusChangeMask |
 	                   PropertyChangeMask | StructureNotifyMask);
+
 	grabbuttons(c, 0);
 	at(c);
 
@@ -1002,7 +1064,7 @@ static void
 monocle(void)
 {
 	C *c;
-	int gap = gappx;
+	int gap = GAP();
 
 	for (c = nexttiled(clients); c; c = nexttiled(c->next)) {
 		resize(c, win_area_x + gap, win_area_y + gap,
@@ -1048,8 +1110,8 @@ movemouse(const A *arg)
 		else if (ev.type == MotionNotify) {
 			if (ev.xmotion.time - last <= MOTION_THROTTLE_MS)
 				continue;
-			last = ev.xmotion.time;
 
+			last = ev.xmotion.time;
 			nx = ocx + ev.xmotion.x - x;
 			ny = ocy + ev.xmotion.y - y;
 
@@ -1085,6 +1147,7 @@ nexttiled(C *c)
 {
 	for (; c && (c->isfloating || !VIS(c)); c = c->next)
 		;
+
 	return c;
 }
 
@@ -1109,9 +1172,8 @@ propertynotify(XEvent *e)
 
 	if (ev->atom == XA_WM_HINTS) {
 		updatewmhints(c);
-		XSetWindowBorder(display, c->win,
-		                 c->isurgent ? color_urg :
-		                 (c == sel ? color_sel : color_norm));
+		BORDER(c, c->isurgent ? color_urg :
+		       (c == sel ? color_sel : color_norm));
 	} else if (ev->atom == XA_WM_NORMAL_HINTS) {
 		c->hintsvalid = 0;
 	} else if (ev->atom == netatom[NetWMWindowType]) {
@@ -1198,8 +1260,8 @@ resizemouse(const A *arg)
 		else if (ev.type == MotionNotify) {
 			if (ev.xmotion.time - last <= MOTION_THROTTLE_MS)
 				continue;
-			last = ev.xmotion.time;
 
+			last = ev.xmotion.time;
 			nw = MAX(ev.xmotion.x - ocx - (c->bw << 1) + 1, 1);
 			nh = MAX(ev.xmotion.y - ocy - (c->bw << 1) + 1, 1);
 
@@ -1216,6 +1278,7 @@ resizemouse(const A *arg)
 
 	XWarpPointer(display, None, c->win, 0, 0, 0, 0,
 	             c->w + c->bw - 1, c->h + c->bw - 1);
+
 	XUngrabPointer(display, CurrentTime);
 
 	if (needar)
@@ -1319,6 +1382,7 @@ sendevent(C *c, Atom proto)
 	if (XGetWMProtocols(display, c->win, &prots, &n)) {
 		while (!exists && n--)
 			exists = prots[n] == proto;
+
 		XFree(prots);
 	}
 
@@ -1424,6 +1488,7 @@ setlayout(const A *arg)
 	/* Two-slot XOR layout history. */
 	layout_sel ^= 1;
 	cur_layouts[layout_sel] = (const L *)arg->v;
+
 	pertagupdate(firsttag(tagsel[sel_group]));
 	ar();
 }
@@ -1474,10 +1539,16 @@ setup(void)
 
 	struct sigaction sa = {0};
 	XSetWindowAttributes wa;
+	Atom aux[3];
+
+#if NWM_WITH_BORDERS
 	XColor xc, exact;
 	Colormap cmap;
-	Atom aux[3];
+#endif
+
+#if NWM_WITH_PERTAG
 	unsigned int i;
+#endif
 
 	sa.sa_handler = SIG_IGN;
 	sa.sa_flags = SA_RESTART;
@@ -1495,6 +1566,7 @@ setup(void)
 	win_area_w = screen_w;
 	win_area_h = screen_h;
 
+#if NWM_WITH_BORDERS
 	cmap = DefaultColormap(display, screen_idx);
 
 	if (!XAllocNamedColor(display, cmap, col_nborder, &xc, &exact))
@@ -1508,6 +1580,7 @@ setup(void)
 	if (!XAllocNamedColor(display, cmap, col_uborder, &xc, &exact))
 		die("nwm: cannot allocate color");
 	color_urg = xc.pixel;
+#endif
 
 	cursor[0] = XCreateFontCursor(display, XC_left_ptr);
 	cursor[1] = XCreateFontCursor(display, XC_fleur);
@@ -1518,8 +1591,10 @@ setup(void)
 
 	if (!XInternAtoms(display, wmnames, WMLast, False, wmatom))
 		die("nwm: XInternAtoms");
+
 	if (!XInternAtoms(display, netnames, NetLast, False, netatom))
 		die("nwm: XInternAtoms");
+
 	if (!XInternAtoms(display, auxnames, 3, False, aux))
 		die("nwm: XInternAtoms");
 
@@ -1529,12 +1604,16 @@ setup(void)
 
 	XChangeProperty(display, wmcheck_win, aux[0], XA_WINDOW, 32,
 	                PropModeReplace, (unsigned char *)&wmcheck_win, 1);
+
 	XChangeProperty(display, wmcheck_win, aux[1], aux[2], 8,
 	                PropModeReplace, (unsigned char *)"nwm", 3);
+
 	XChangeProperty(display, root, aux[0], XA_WINDOW, 32,
 	                PropModeReplace, (unsigned char *)&wmcheck_win, 1);
+
 	XChangeProperty(display, root, netatom[NetSupported], XA_ATOM, 32,
 	                PropModeReplace, (unsigned char *)netatom, NetLast);
+
 	XDeleteProperty(display, root, netatom[NetClientList]);
 
 	sel_group = layout_sel = 0;
@@ -1546,6 +1625,7 @@ setup(void)
 	cur_layouts[0] = &layouts[0];
 	cur_layouts[1] = &layouts[1 % LEN(layouts)];
 
+#if NWM_WITH_PERTAG
 	for (i = 0; i < LEN(tags); i++) {
 		per_tag[i].lt[0] = cur_layouts[0];
 		per_tag[i].lt[1] = cur_layouts[1];
@@ -1553,6 +1633,7 @@ setup(void)
 		per_tag[i].mf = master_factor;
 		per_tag[i].nm = master_count;
 	}
+#endif
 
 	grabkeys();
 
@@ -1571,9 +1652,7 @@ seturgency(C *c, int urg)
 	XWMHints *wm;
 
 	c->isurgent = urg;
-
-	XSetWindowBorder(display, c->win,
-	                 urg ? color_urg : (c == sel ? color_sel : color_norm));
+	BORDER(c, urg ? color_urg : (c == sel ? color_sel : color_norm));
 
 	if (!(wm = XGetWMHints(display, c->win)))
 		return;
@@ -1647,7 +1726,7 @@ tile(void)
 {
 	C *c;
 	unsigned int i, n, nm, ns;
-	int gap = gappx;
+	int gap = GAP();
 	int master_w, y, h, rem;
 
 	for (n = 0, c = nexttiled(clients); c; c = nexttiled(c->next), n++)
@@ -1672,6 +1751,7 @@ tile(void)
 		int bw2 = c->bw << 1;
 
 		h = rem / (int)nm;
+
 		if (i == nm - 1)
 			h += rem % (int)nm;
 
@@ -1693,6 +1773,7 @@ tile(void)
 			int bw2 = c->bw << 1;
 
 			h = rem / (int)ns;
+
 			if (i == ns - 1)
 				h += rem % (int)ns;
 
@@ -1750,16 +1831,18 @@ toggleview(const A *arg)
 	unsigned int new_mask, old_mask;
 
 	new_mask = tagsel[sel_group] ^ (arg->ui & TM);
+
 	if (!new_mask)
 		return;
 
 	/* Keep toggleview consistent with two-slot tag history. */
 	old_mask = tagsel[sel_group];
 	pertagsave(old_mask);
+
 	sel_group ^= 1;
 	tagsel[sel_group] = new_mask;
-	pertagrestore(tagsel[sel_group]);
 
+	pertagrestore(tagsel[sel_group]);
 	focus(NULL);
 	ar();
 }
@@ -1771,8 +1854,7 @@ unfocus(C *c)
 		return;
 
 	grabbuttons(c, 0);
-	XSetWindowBorder(display, c->win,
-	                 c->isurgent ? color_urg : color_norm);
+	BORDER(c, c->isurgent ? color_urg : color_norm);
 }
 
 static void
@@ -1798,7 +1880,6 @@ unmanage(C *c, int destroyed)
 	}
 
 	free(c);
-
 	focus(NULL);
 	updateclientlist();
 	ar();
@@ -1871,8 +1952,10 @@ updatesizehints(C *c)
 
 	c->basew = (sz.flags & PBaseSize) ? sz.base_width :
 	           (sz.flags & PMinSize)  ? sz.min_width  : 0;
+
 	c->baseh = (sz.flags & PBaseSize) ? sz.base_height :
 	           (sz.flags & PMinSize)  ? sz.min_height : 0;
+
 	c->incw  = (sz.flags & PResizeInc) ? sz.width_inc  : 0;
 	c->inch  = (sz.flags & PResizeInc) ? sz.height_inc : 0;
 	c->maxw  = (sz.flags & PMaxSize)   ? sz.max_width  : 0;
@@ -1891,6 +1974,7 @@ updatesizehints(C *c)
 
 	c->isfixed = (c->maxw && c->maxh &&
 	              c->maxw == c->minw && c->maxh == c->minh);
+
 	c->hintsvalid = 1;
 }
 
@@ -1949,7 +2033,6 @@ updatewmhints(C *c)
 	}
 
 	c->neverfocus = !!(wm->flags & InputHint) && !wm->input;
-
 	XFree(wm);
 }
 
@@ -1967,6 +2050,7 @@ view(const A *arg)
 
 	old_mask = tagsel[sel_group];
 	pertagsave(old_mask);
+
 	sel_group ^= 1;
 
 	if (arg->ui & TM)
@@ -1982,9 +2066,10 @@ wintoclient(Window w)
 {
 	C *c;
 
-	for (c = clients; c; c = c->next)
+	for (c = clients; c; c = c->next) {
 		if (c->win == w)
 			return c;
+	}
 
 	return NULL;
 }
