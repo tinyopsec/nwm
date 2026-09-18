@@ -9,8 +9,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-33ACB4?style=flat&labelColor=0E2426&logo=opensourceinitiative&logoColor=33ACB4" alt="license MIT">
   <img src="https://img.shields.io/badge/C99%20%2F%20POSIX-46B9B4?style=flat&label=lang&labelColor=0E2426&logo=c&logoColor=46B9B4" alt="C99 / POSIX">
-  <img src="https://img.shields.io/badge/%7E1400%20lines-59C6B5?style=flat&label=source&labelColor=0E2426&logo=files&logoColor=59C6B5" alt="about 1400 lines">
-  <img src="https://img.shields.io/badge/1.5.1-6CD4B5?style=flat&label=version&labelColor=0E2426&logo=tag&logoColor=6CD4B5" alt="version 1.5.1">
+  <img src="https://img.shields.io/badge/%7E2147%20lines-59C6B5?style=flat&label=source&labelColor=0E2426&logo=files&logoColor=59C6B5" alt="about 2147 lines">
+  <img src="https://img.shields.io/badge/1.5.2-6CD4B5?style=flat&label=version&labelColor=0E2426&logo=tag&logoColor=6CD4B5" alt="version 1.5.2">
   &nbsp;
   <img src="https://img.shields.io/badge/Linux-7EE1B5?style=flat&labelColor=0E2426&logo=linux&logoColor=7EE1B5" alt="Linux">
   <img src="https://img.shields.io/badge/OpenBSD-91EEB6?style=flat&labelColor=0E2426&logo=openbsd&logoColor=91EEB6" alt="OpenBSD">
@@ -64,7 +64,7 @@ startx
 
 | Area | dwm | nwm |
 |---|---|---|
-| Lines of code | ~2901 total (.h / .c) | ~1400 (fits in one reading session) |
+| Lines of code | ~2901 total (.h / .c) | ~2147 (fits in one reading session) |
 | RAM at idle | ~5–15 MB | ~3–8 MB on my PC (leaner process image) |
 | Tiling arithmetic | Can accumulate pixel remainder | Integer division, remainder assigned to the last window |
 | Gap support | Requires patching | Built in via `gappx` |
