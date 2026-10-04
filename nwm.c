@@ -54,7 +54,7 @@ struct C {
 	int x, y, w, h, oldx, oldy, oldw, oldh;
 	int basew, baseh, incw, inch, maxw, maxh, minw, minh;
 	int bw, oldbw;
-	unsigned int tags;
+	unsigned int tags, pubtags;
 	unsigned int isfixed:1, isfloating:1, isurgent:1, neverfocus:1,
 	             oldstate:1, isfullscreen:1, hintsvalid:1;
 	C *next, *snext;
@@ -63,7 +63,10 @@ struct C {
 
 enum { ClkClientWin, ClkRootWin };
 enum { NetSupported, NetWMState, NetWMFullscreen, NetActiveWindow,
-       NetWMWindowType, NetWMWindowTypeDialog, NetClientList, NetWMCheck, NetLast };
+       NetWMWindowType, NetWMWindowTypeDialog, NetClientList, NetWMCheck,
+       NetWMWindowTypeDock, NetWMStrut, NetWMStrutPartial, NetWorkarea,
+       NetNumberOfDesktops, NetCurrentDesktop, NetDesktopNames, NetWMDesktop,
+       NetDesktopGeometry, NetDesktopViewport, NetLast };
 enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast };
 
 static int applyrules(C *);
@@ -79,6 +82,7 @@ static void configurerequest(XEvent *);
 static void destroynotify(XEvent *);
 static void detach(C *);
 static void detachstack(C *);
+static unsigned int dockidx(Window);
 static void enternotify(XEvent *);
 static void focus(C *);
 static void focusin(XEvent *);
@@ -86,10 +90,11 @@ static void focusnext(const A *);
 static long getstate(Window);
 static void grabbuttons(C *, int);
 static void grabkeys(void);
-static int hasatom(C *, Atom, Atom);
+static int hasatom(Window, Atom, Atom);
 static void incnmaster(const A *);
 static void keypress(XEvent *);
 static void killclient(const A *);
+static unsigned int lowtag(unsigned int);
 static void manage(Window, XWindowAttributes *);
 static void mappingnotify(XEvent *);
 static void maprequest(XEvent *);
@@ -122,12 +127,15 @@ static void togglefullscreen(const A *);
 static void toggletag(const A *);
 static void toggleview(const A *);
 static void unfocus(C *);
+static void undock(Window);
 static void unmanage(C *, int);
 static void unmapnotify(XEvent *);
 static void updateclientlist(void);
+static void updatedesktops(void);
 static void updatenumlockmask(void);
 static void updatesizehints(C *);
 static void updatewindowtype(C *);
+static void updateworkarea(void);
 static void updatewmhints(C *);
 static void view(const A *);
 static C *wintoclient(Window);
@@ -156,11 +164,13 @@ typedef char nwm_layouts_any[(LEN(layouts) >= 1) ? 1 : -1];
 
 static Display *display;
 static Window root, wmcheck_win;
-static int screen_w, screen_h, running = 1;
+static int screen_w, screen_h, wx, wy, ww, wh, running = 1; /* wx..wh: area not covered by docks */
 static unsigned int numlockmask, sel_group, tagsel[2];
 static Cursor cursor[3];
 static Atom wmatom[WMLast], netatom[NetLast];
 static C *clients, *sel, *stack;
+static Window docks[8];
+static unsigned int ndock;
 static PT cur;
 
 static void (*handler[LASTEvent])(XEvent *) = {
@@ -189,6 +199,17 @@ die(const char *fmt, ...)
 	exit(1);
 }
 
+/* Index of the lowest tag in mask m. */
+static unsigned int
+lowtag(unsigned int m)
+{
+	unsigned int i;
+
+	for (i = 0; i < LEN(tags) - 1 && !(m & (1u << i)); i++)
+		;
+	return i;
+}
+
 #if NWM_WITH_PERTAG
 static PT per_tag[LEN(tags)];
 
@@ -196,12 +217,7 @@ static PT per_tag[LEN(tags)];
 static unsigned int
 curtag(void)
 {
-	unsigned int i;
-
-	for (i = 0; i < LEN(tags); i++)
-		if (tagsel[sel_group] & (1u << i))
-			return i;
-	return 0;
+	return lowtag(tagsel[sel_group]);
 }
 
 static void
@@ -334,6 +350,7 @@ ar(void)
 	if (ARR)
 		ARR();
 	restack();
+	updatedesktops();
 }
 
 static void
@@ -412,6 +429,12 @@ cleanup(void)
 	XDeleteProperty(display, root, netatom[NetActiveWindow]);
 	XDeleteProperty(display, root, netatom[NetSupported]);
 	XDeleteProperty(display, root, netatom[NetWMCheck]);
+	XDeleteProperty(display, root, netatom[NetNumberOfDesktops]);
+	XDeleteProperty(display, root, netatom[NetCurrentDesktop]);
+	XDeleteProperty(display, root, netatom[NetDesktopNames]);
+	XDeleteProperty(display, root, netatom[NetWorkarea]);
+	XDeleteProperty(display, root, netatom[NetDesktopGeometry]);
+	XDeleteProperty(display, root, netatom[NetDesktopViewport]);
 	XDestroyWindow(display, wmcheck_win);
 	XSync(display, False);
 	XSetInputFocus(display, PointerRoot, RevertToPointerRoot, CurrentTime);
@@ -422,7 +445,16 @@ clientmsg(XEvent *e)
 {
 	XClientMessageEvent *ev = &e->xclient;
 	C *c = wintoclient(ev->window);
+	A a;
 
+	/* A panel switches desktops by messaging the root window. */
+	if (ev->window == root && ev->message_type == netatom[NetCurrentDesktop]) {
+		if ((unsigned long)ev->data.l[0] < LEN(tags)) {
+			a.ui = 1u << ev->data.l[0];
+			view(&a);
+		}
+		return;
+	}
 	if (!c)
 		return;
 
@@ -498,6 +530,8 @@ destroynotify(XEvent *e)
 
 	if ((c = wintoclient(e->xdestroywindow.window)))
 		unmanage(c, 1);
+	else
+		undock(e->xdestroywindow.window);
 }
 
 static void
@@ -526,6 +560,17 @@ detachstack(C *c)
 			;
 		sel = t;
 	}
+}
+
+/* Position of w in docks[]; ndock if it is not a known dock. */
+static unsigned int
+dockidx(Window w)
+{
+	unsigned int i;
+
+	for (i = 0; i < ndock && docks[i] != w; i++)
+		;
+	return i;
 }
 
 static void
@@ -678,16 +723,16 @@ grabkeys(void)
 	}
 }
 
-/* True if the atom list property `prop` of c contains `want`. */
+/* True if the atom list property `prop` of w contains `want`. */
 static int
-hasatom(C *c, Atom prop, Atom want)
+hasatom(Window w, Atom prop, Atom want)
 {
 	int fmt, found = 0;
 	unsigned long n, rem, i;
 	unsigned char *p = NULL;
 	Atom type;
 
-	if (XGetWindowProperty(display, c->win, prop, 0L, 1024L, False, XA_ATOM,
+	if (XGetWindowProperty(display, w, prop, 0L, 1024L, False, XA_ATOM,
 	                       &type, &fmt, &n, &rem, &p) == Success && p) {
 		if (type == XA_ATOM && fmt == 32)
 			for (i = 0; i < n; i++)
@@ -742,6 +787,17 @@ manage(Window w, XWindowAttributes *wa)
 	XWindowChanges wc;
 	int rule_floating;
 
+	/* Docks (panels) are not clients: map them, their struts shrink the work area. */
+	if (hasatom(w, netatom[NetWMWindowType], netatom[NetWMWindowTypeDock])) {
+		if (dockidx(w) == ndock && ndock < LEN(docks)) {
+			docks[ndock++] = w;
+			XSelectInput(display, w, PropertyChangeMask);
+		}
+		XMapWindow(display, w);
+		updateworkarea();
+		return;
+	}
+
 	if (!(c = calloc(1, sizeof(C))))
 		die("nwm: calloc");
 
@@ -761,8 +817,8 @@ manage(Window w, XWindowAttributes *wa)
 		c->tags = t->tags;
 
 	c->bw = DEFAULT_BORDERPX;
-	c->x = MAX(MIN(c->x, screen_w - W(c)), 0);
-	c->y = MAX(MIN(c->y, screen_h - H(c)), 0);
+	c->x = MAX(MIN(c->x, wx + ww - W(c)), wx);
+	c->y = MAX(MIN(c->y, wy + wh - H(c)), wy);
 
 	wc.border_width = c->bw;
 	XConfigureWindow(display, w, CWBorderWidth, &wc);
@@ -826,9 +882,9 @@ monocle(void)
 	int gap = GAP();
 
 	for (c = nexttiled(clients); c; c = nexttiled(c->next))
-		resize(c, gap, gap,
-		       MAX(1, screen_w - 2 * gap - (c->bw << 1)),
-		       MAX(1, screen_h - 2 * gap - (c->bw << 1)), 0);
+		resize(c, wx + gap, wy + gap,
+		       MAX(1, ww - 2 * gap - (c->bw << 1)),
+		       MAX(1, wh - 2 * gap - (c->bw << 1)), 0);
 }
 
 static void
@@ -883,14 +939,14 @@ movemouse(const A *arg)
 			nx = ocx + ev.xmotion.x - x;
 			ny = ocy + ev.xmotion.y - y;
 
-			if (abs(nx) < (int)snap)
-				nx = 0;
-			else if (abs(screen_w - W(c) - nx) < (int)snap)
-				nx = screen_w - W(c);
-			if (abs(ny) < (int)snap)
-				ny = 0;
-			else if (abs(screen_h - H(c) - ny) < (int)snap)
-				ny = screen_h - H(c);
+			if (abs(nx - wx) < (int)snap)
+				nx = wx;
+			else if (abs(wx + ww - W(c) - nx) < (int)snap)
+				nx = wx + ww - W(c);
+			if (abs(ny - wy) < (int)snap)
+				ny = wy;
+			else if (abs(wy + wh - H(c) - ny) < (int)snap)
+				ny = wy + wh - H(c);
 
 			if (!c->isfloating && ARR &&
 			    (abs(nx - ocx) > (int)snap || abs(ny - ocy) > (int)snap)) {
@@ -931,6 +987,11 @@ propertynotify(XEvent *e)
 	XPropertyEvent *ev = &e->xproperty;
 	C *c;
 
+	if (ev->atom == netatom[NetWMStrut] || ev->atom == netatom[NetWMStrutPartial]) {
+		if (dockidx(ev->window) < ndock)
+			updateworkarea();
+		return;
+	}
 	if (ev->state == PropertyDelete || !(c = wintoclient(ev->window)))
 		return;
 
@@ -1201,11 +1262,18 @@ setup(void)
 	static char *netnames[] = { "_NET_SUPPORTED", "_NET_WM_STATE",
 	                            "_NET_WM_STATE_FULLSCREEN", "_NET_ACTIVE_WINDOW",
 	                            "_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_DIALOG",
-	                            "_NET_CLIENT_LIST",
-	                            "_NET_SUPPORTING_WM_CHECK" };
+	                            "_NET_CLIENT_LIST", "_NET_SUPPORTING_WM_CHECK",
+	                            "_NET_WM_WINDOW_TYPE_DOCK", "_NET_WM_STRUT",
+	                            "_NET_WM_STRUT_PARTIAL", "_NET_WORKAREA",
+	                            "_NET_NUMBER_OF_DESKTOPS", "_NET_CURRENT_DESKTOP",
+	                            "_NET_DESKTOP_NAMES", "_NET_WM_DESKTOP",
+	                            "_NET_DESKTOP_GEOMETRY", "_NET_DESKTOP_VIEWPORT" };
 	static char *auxnames[] = { "_NET_WM_NAME", "UTF8_STRING" };
 	XSetWindowAttributes wa;
+	static long vp[2 * LEN(tags)]; /* all zero: no large desktops */
 	Atom aux[2];
+	unsigned int i;
+	long nd = LEN(tags), geo[2];
 	int scr = DefaultScreen(display);
 
 	if (signal(SIGCHLD, SIG_IGN) == SIG_ERR)
@@ -1240,12 +1308,27 @@ setup(void)
 	                PropModeReplace, (unsigned char *)netatom, NetLast);
 	XDeleteProperty(display, root, netatom[NetClientList]);
 
+	/* One desktop per tag, so external panels can show them. */
+	geo[0] = screen_w;
+	geo[1] = screen_h;
+	XChangeProperty(display, root, netatom[NetNumberOfDesktops], XA_CARDINAL, 32,
+	                PropModeReplace, (unsigned char *)&nd, 1);
+	XChangeProperty(display, root, netatom[NetDesktopGeometry], XA_CARDINAL, 32,
+	                PropModeReplace, (unsigned char *)geo, 2);
+	XChangeProperty(display, root, netatom[NetDesktopViewport], XA_CARDINAL, 32,
+	                PropModeReplace, (unsigned char *)vp, 2 * LEN(tags));
+	for (i = 0; i < LEN(tags); i++)
+		XChangeProperty(display, root, netatom[NetDesktopNames], aux[1], 8,
+		                i ? PropModeAppend : PropModeReplace,
+		                (unsigned char *)tags[i], strlen(tags[i]) + 1);
+
 	tagsel[0] = tagsel[1] = 1;
 	cur.mf = (mfact < 0.05f || mfact > 0.95f) ? 0.5f : mfact;
 	cur.nm = MAX(nmaster, 0);
 	cur.lt[0] = &layouts[0];
 	cur.lt[1] = &layouts[1 % LEN(layouts)];
 	ptinit();
+	updateworkarea(); /* publishes _NET_WORKAREA and the first desktop state */
 
 	grabkeys();
 
@@ -1313,7 +1396,7 @@ static C *
 col(C *c, unsigned int n, int x, int w)
 {
 	unsigned int i;
-	int gap = GAP(), y = gap, h, rem = MAX(1, screen_h - (int)(n + 1) * gap);
+	int gap = GAP(), y = wy + gap, h, rem = MAX(1, wh - (int)(n + 1) * gap);
 
 	for (i = 0; c && i < n; c = nexttiled(c->next), i++) {
 		h = rem / (int)n + (i == n - 1 ? rem % (int)n : 0);
@@ -1337,12 +1420,12 @@ tile(void)
 
 	nm = MIN((unsigned int)cur.nm, n);
 	ns = n - nm;
-	mw = MAX(1, (nm && ns) ? (int)((screen_w - 3 * gap) * cur.mf) : screen_w - 2 * gap);
+	mw = MAX(1, (nm && ns) ? (int)((ww - 3 * gap) * cur.mf) : ww - 2 * gap);
 
-	c = col(nexttiled(clients), nm, gap, mw);
+	c = col(nexttiled(clients), nm, wx + gap, mw);
 	if (ns)
-		col(c, ns, nm ? mw + 2 * gap : gap,
-		    MAX(1, screen_w - (nm ? mw + 3 * gap : 2 * gap)));
+		col(c, ns, wx + (nm ? mw + 2 * gap : gap),
+		    MAX(1, ww - (nm ? mw + 3 * gap : 2 * gap)));
 }
 
 static void
@@ -1402,6 +1485,17 @@ unfocus(C *c)
 }
 
 static void
+undock(Window w)
+{
+	unsigned int i = dockidx(w);
+
+	if (i < ndock) {
+		docks[i] = docks[--ndock];
+		updateworkarea();
+	}
+}
+
+static void
 unmanage(C *c, int destroyed)
 {
 	XWindowChanges wc;
@@ -1436,6 +1530,8 @@ unmapnotify(XEvent *e)
 			setclientstate(c, WithdrawnState);
 		else
 			unmanage(c, 0);
+	} else {
+		undock(e->xunmap.window);
 	}
 }
 
@@ -1448,6 +1544,29 @@ updateclientlist(void)
 	for (c = clients; c; c = c->next)
 		XChangeProperty(display, root, netatom[NetClientList], XA_WINDOW, 32,
 		                PropModeAppend, (unsigned char *)&c->win, 1);
+}
+
+/* Publish _NET_CURRENT_DESKTOP and _NET_WM_DESKTOP; X is only touched on change. */
+static void
+updatedesktops(void)
+{
+	static long last = -1;
+	long d = lowtag(tagsel[sel_group]);
+	C *c;
+
+	if (d != last) {
+		XChangeProperty(display, root, netatom[NetCurrentDesktop], XA_CARDINAL, 32,
+		                PropModeReplace, (unsigned char *)&d, 1);
+		last = d;
+	}
+	for (c = clients; c; c = c->next) {
+		if (c->tags == c->pubtags)
+			continue;
+		c->pubtags = c->tags;
+		d = (c->tags == TM) ? 0xFFFFFFFFL : (long)lowtag(c->tags); /* all desktops */
+		XChangeProperty(display, c->win, netatom[NetWMDesktop], XA_CARDINAL, 32,
+		                PropModeReplace, (unsigned char *)&d, 1);
+	}
 }
 
 static void
@@ -1501,9 +1620,9 @@ updatesizehints(C *c)
 static void
 updatewindowtype(C *c)
 {
-	if (hasatom(c, netatom[NetWMState], netatom[NetWMFullscreen]))
+	if (hasatom(c->win, netatom[NetWMState], netatom[NetWMFullscreen]))
 		setfullscreen(c, 1);
-	if (hasatom(c, netatom[NetWMWindowType], netatom[NetWMWindowTypeDialog]))
+	if (hasatom(c->win, netatom[NetWMWindowType], netatom[NetWMWindowTypeDialog]))
 		c->isfloating = c->oldstate = 1;
 }
 
@@ -1524,6 +1643,54 @@ updatewmhints(C *c)
 	}
 	c->neverfocus = !!(wm->flags & InputHint) && !wm->input;
 	XFree(wm);
+}
+
+/*
+ * Docks reserve screen edges via _NET_WM_STRUT_PARTIAL or _NET_WM_STRUT; the
+ * biggest strut per edge wins. Strut ranges are ignored: the X screen is one
+ * monitor. Tiling, monocle and snapping use the area that is left.
+ */
+static void
+updateworkarea(void)
+{
+	Atom type, prop[2] = { netatom[NetWMStrutPartial], netatom[NetWMStrut] };
+	long wa[4 * LEN(tags)], e[4] = { 0, 0, 0, 0 }; /* left right top bottom */
+	unsigned long n, rem;
+	unsigned int i, j, k;
+	unsigned char *p;
+	int fmt, found, x, y, w, h;
+
+	for (i = 0; i < ndock; i++)
+		for (j = 0, found = 0; j < 2 && !found; j++) {
+			p = NULL;
+			if (XGetWindowProperty(display, docks[i], prop[j], 0L, 4L, False,
+			                       XA_CARDINAL, &type, &fmt, &n, &rem, &p) != Success || !p)
+				continue;
+			if ((found = type == XA_CARDINAL && fmt == 32 && n == 4))
+				for (k = 0; k < 4; k++)
+					e[k] = MAX(e[k], ((long *)p)[k]);
+			XFree(p);
+		}
+
+	for (k = 0; k < 4; k++)
+		e[k] = MIN(e[k], k < 2 ? screen_w : screen_h);
+	x = (int)e[0];
+	y = (int)e[2];
+	w = MAX(1, screen_w - x - (int)e[1]);
+	h = MAX(1, screen_h - y - (int)e[3]);
+	if (x == wx && y == wy && w == ww && h == wh)
+		return;
+
+	wx = x; wy = y; ww = w; wh = h;
+	for (i = 0; i < LEN(tags); i++) {
+		wa[4 * i] = x;
+		wa[4 * i + 1] = y;
+		wa[4 * i + 2] = w;
+		wa[4 * i + 3] = h;
+	}
+	XChangeProperty(display, root, netatom[NetWorkarea], XA_CARDINAL, 32,
+	                PropModeReplace, (unsigned char *)wa, 4 * LEN(tags));
+	ar();
 }
 
 static void

@@ -9,8 +9,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-33ACB4?style=flat&labelColor=0E2426&logo=opensourceinitiative&logoColor=33ACB4" alt="license MIT">
   <img src="https://img.shields.io/badge/C99%20%2F%20POSIX-46B9B4?style=flat&label=lang&labelColor=0E2426&logo=c&logoColor=46B9B4" alt="C99 / POSIX">
-  <img src="https://img.shields.io/badge/%7E1700%20lines-59C6B5?style=flat&label=source&labelColor=0E2426&logo=files&logoColor=59C6B5" alt="about 1700 lines">
-  <img src="https://img.shields.io/badge/1.5.3-6CD4B5?style=flat&label=version&labelColor=0E2426&logo=tag&logoColor=6CD4B5" alt="version 1.5.3">
+  <img src="https://img.shields.io/badge/%7E1800%20lines-59C6B5?style=flat&label=source&labelColor=0E2426&logo=files&logoColor=59C6B5" alt="about 1800 lines">
+  <img src="https://img.shields.io/badge/1.6.0-6CD4B5?style=flat&label=version&labelColor=0E2426&logo=tag&logoColor=6CD4B5" alt="version 1.6.0">
   &nbsp;
   <img src="https://img.shields.io/badge/Linux-7EE1B5?style=flat&labelColor=0E2426&logo=linux&logoColor=7EE1B5" alt="Linux">
   <img src="https://img.shields.io/badge/OpenBSD-91EEB6?style=flat&labelColor=0E2426&logo=openbsd&logoColor=91EEB6" alt="OpenBSD">
@@ -23,6 +23,12 @@
   <img src="https://img.shields.io/badge/EWMH%20%2F%20ICCCM-7EE1B5?style=flat&label=spec&labelColor=0E2426&logo=xdg&logoColor=7EE1B5" alt="EWMH / ICCCM">
 </p>
 
+> [!TIP]
+> **Want a status bar? You can have one.** nwm draws nothing itself, but it speaks EWMH, so an external bar works out of the box:
+> a docked bar is left alone (no border, no tag, no focus), tiling avoids the space it reserves (`_NET_WM_STRUT_PARTIAL`), and your tags are published as EWMH desktops.
+> [polybar](https://github.com/polybar/polybar), [tint2](https://gitlab.com/o9000/tint2) or [lemonbar](https://github.com/LemonBoy/bar) can show tag names, the current tag, occupied tags and the focused window title, and clicking a tag switches to it.
+> Details and a ready-to-use polybar config: [External Bars](#external-bars).
+
 ## Contents
 
 - [Quick Start](#quick-start)
@@ -34,6 +40,7 @@
 - [Key Bindings](#key-bindings)
 - [Configuration](#configuration)
 - [Window Rules](#window-rules)
+- [External Bars](#external-bars)
 - [How It Works](#how-it-works)
 - [Contributing](#contributing)
 - [Star History](#star-history)
@@ -64,13 +71,13 @@ startx
 
 | Area | dwm | nwm |
 |---|---|---|
-| Lines of code | ~2901 total (.h / .c) | ~1700 (fits in one reading session) |
+| Lines of code | ~2901 total (.h / .c) | ~1800 (fits in one reading session) |
 | RAM at idle | ~5–15 MB | ~3–8 MB on my PC (leaner process image) |
 | Tiling arithmetic | Height of each window computed from the space left | Integer division, remainder assigned to the last window |
 | Gap support | Requires patching | Built in via `gappx` |
 | Mod+Tab behavior | Inconsistent across patches | Deterministic XOR two-slot history |
 | POSIX compliance | Uses GNU extensions in places | Strict C99 / POSIX orientation |
-| Status bar | Built-in bar, requires patching to remove | No bar; use any external panel or none (no dock/strut support, see [How It Works](#how-it-works)) |
+| Status bar | Built-in bar, requires patching to remove | No built-in bar; any EWMH-aware external bar works (polybar, tint2, lemonbar), see [External Bars](#external-bars) |
 | Config complexity | ~100–150 lines of config + patch management | Single flat `nwm.h`, no patch stack |
 | Audit surface | Large: bar, fonts, drawing code | Minimal: window management only |
 
@@ -92,7 +99,8 @@ If you already run a patched dwm, `nwm` is roughly what you end up with after ap
 | Fullscreen | Toggle via keybind or `_NET_WM_STATE_FULLSCREEN` |
 | Urgent hints | `XUrgencyHint` and `_NET_ACTIVE_WINDOW` handled as urgency |
 | Auto-float | `_NET_WM_WINDOW_TYPE_DIALOG` windows float automatically |
-| EWMH | `_NET_SUPPORTED`, `_NET_WM_STATE`, `_NET_ACTIVE_WINDOW`, `_NET_CLIENT_LIST`, `_NET_SUPPORTING_WM_CHECK`, `_NET_WM_WINDOW_TYPE`, `_NET_WM_WINDOW_TYPE_DIALOG` |
+| EWMH | `_NET_SUPPORTED`, `_NET_WM_STATE`, `_NET_ACTIVE_WINDOW`, `_NET_CLIENT_LIST`, `_NET_SUPPORTING_WM_CHECK`, `_NET_WM_WINDOW_TYPE`, `_NET_WM_WINDOW_TYPE_DIALOG`, `_NET_WM_WINDOW_TYPE_DOCK`, `_NET_WM_STRUT_PARTIAL`, `_NET_WM_STRUT`, `_NET_WORKAREA`, `_NET_NUMBER_OF_DESKTOPS`, `_NET_CURRENT_DESKTOP`, `_NET_DESKTOP_NAMES`, `_NET_DESKTOP_GEOMETRY`, `_NET_DESKTOP_VIEWPORT`, `_NET_WM_DESKTOP` |
+| External bars | Docks are not managed; their struts shrink the tiling area; tags are exposed as EWMH desktops; a bar can switch tags |
 | ICCCM | `WM_DELETE_WINDOW`, `WM_TAKE_FOCUS`, `WM_NORMAL_HINTS`, `WM_HINTS`, `WM_STATE` |
 | OpenBSD | `pledge(2)` support; FreeBSD support is expected but not actively tested |
 | Compilation | Clean target under `gcc` or `clang` with `-std=c99 -pedantic -Wall -Wextra` |
@@ -342,6 +350,55 @@ Only the first matching rule is applied. If no rule matches, `nwm` keeps its def
 
 ---
 
+## External Bars
+
+nwm has no bar and never will: drawing text is outside its scope. It does cooperate with external bars through standard EWMH hints, so you get a working bar without any code in nwm.
+
+What nwm provides to a bar:
+
+| Hint | Meaning |
+|---|---|
+| `_NET_WM_WINDOW_TYPE_DOCK`, `_NET_WM_STRUT_PARTIAL`, `_NET_WM_STRUT` | Read from the bar: it is not tiled, and the screen edge it reserves is kept free |
+| `_NET_WORKAREA` | The area left for windows |
+| `_NET_NUMBER_OF_DESKTOPS`, `_NET_DESKTOP_NAMES`, `_NET_DESKTOP_GEOMETRY`, `_NET_DESKTOP_VIEWPORT` | One desktop per entry of `tags[]`, named like the tags |
+| `_NET_CURRENT_DESKTOP` | Current tag (lowest tag of the view); a bar can change it by sending the same message |
+| `_NET_WM_DESKTOP`, `_NET_CLIENT_LIST`, `_NET_ACTIVE_WINDOW` | Where each window lives, which windows exist, which one has focus |
+
+Typical [polybar](https://github.com/polybar/polybar) setup (`~/.config/polybar/config.ini`). The bar must be a normal window, not override-redirect, otherwise nwm never sees it and nothing is reserved:
+
+```ini
+[bar/main]
+width = 100%
+height = 24
+override-redirect = false
+modules-left = xworkspaces
+modules-center = xwindow
+
+[module/xworkspaces]
+type = internal/xworkspaces
+enable-click = true
+
+[module/xwindow]
+type = internal/xwindow
+```
+
+Start the bar from `~/.xinitrc` (nwm has no autostart). Before or after nwm both work:
+
+```sh
+polybar main &
+exec nwm
+```
+
+For [lemonbar](https://github.com/LemonBoy/bar) pass `-d` so the bar is a docked window instead of override-redirect. [tint2](https://gitlab.com/o9000/tint2) normally sets the dock type itself and needs no special option.
+
+Notes:
+
+- Tag names come from `tags[]` in `nwm.h`. Recompile to rename them, for example `"web", "dev", "mail"`.
+- A bar that is override-redirect is simply ignored by nwm and may overlap windows; use a non-override-redirect bar or leave a margin yourself.
+- Multi-monitor is not supported (see [How It Works](#how-it-works)): the bar's strut applies to the whole X screen.
+
+---
+
 ## How It Works
 
 `nwm` manages windows through a flat client list and a parallel focus stack. The tiling algorithm divides the screen into a master area and a stack area, computing tile sizes with integer arithmetic, so there is no pixel drift across redraws. The remaining pixels are assigned to the last window in each column. Only the master width is derived from the floating-point `mfact`, which is clamped to 0.05–0.95.
@@ -373,8 +430,10 @@ Some behavior is intentionally explicit:
 - The screen size is read once at startup. RandR, multi-monitor layouts and resolution changes are not handled; the whole X screen is treated as one monitor.
 - There is no minimize/iconify support. Windows left iconic by a previous window manager are mapped on startup.
 - `_NET_WM_STATE` is read when a window is mapped and honored via client messages; later changes to the property itself are not tracked.
-- Not implemented: `_NET_NUMBER_OF_DESKTOPS`, `_NET_CURRENT_DESKTOP`, `_NET_WM_DESKTOP`, `_NET_CLIENT_LIST_STACKING`.
-- `_NET_WM_WINDOW_TYPE_DOCK` and `_NET_WM_STRUT*` are not supported. A panel that is not override-redirect is managed as an ordinary window and does not reduce the tiling area.
+- Every tag is an EWMH desktop. `_NET_CURRENT_DESKTOP` is the lowest tag of the current view (when several tags are shown), `_NET_WM_DESKTOP` of a window is its lowest tag (`0xFFFFFFFF` if it is on all tags), and `_NET_DESKTOP_NAMES` comes from `tags[]`. These properties are only written when something changed.
+- Windows of type `_NET_WM_WINDOW_TYPE_DOCK` are not clients: nwm maps them as they are, with no border, tag or focus handling. Their `_NET_WM_STRUT_PARTIAL` (or the older `_NET_WM_STRUT`) reserves screen edges; tiling, monocle, new floating windows and drag snapping use the area that is left, and `_NET_WORKAREA` is published. Per edge the largest strut wins (struts are not added up), strut start/end ranges are ignored because the whole X screen is one monitor, and at most 8 docks are tracked (`docks[8]` in `nwm.c`). Fullscreen windows still cover the whole screen, bar included. A panel that does not set the dock type is managed as an ordinary window.
+- A panel can switch tags by sending `_NET_CURRENT_DESKTOP`. Clicking a window in a taskbar sends `_NET_ACTIVE_WINDOW`, which only marks that window urgent (see above). The `_NET_WM_DESKTOP` client message is not handled, so a panel cannot move windows between tags.
+- Not implemented: `_NET_CLIENT_LIST_STACKING`, `_NET_SHOWING_DESKTOP`.
 
 It’s hard to explain in words, but you can grasp the entire code structure if you spend an hour reading the code.
 

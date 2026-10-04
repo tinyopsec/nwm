@@ -1,10 +1,12 @@
 # nwm - Nano window manager
 # See LICENSE file for copyright and license details.
 
-VERSION = 1.5.3
+VERSION = 1.6.0
 
 PREFIX  = /usr/local
 BINDIR  = ${PREFIX}/bin
+MANPREFIX = ${PREFIX}/share/man
+MANDIR  = ${MANPREFIX}/man1
 
 X11INC  = /usr/X11R6/include
 X11LIB  = /usr/X11R6/lib
@@ -56,7 +58,7 @@ debug: ${SRC} nwm.h
 
 dist: clean
 	mkdir -p nwm-${VERSION}
-	cp -R nwm.c nwm.h Makefile LICENSE README.md nwm-${VERSION}
+	cp -R nwm.c nwm.h nwm.1 Makefile LICENSE README.md nwm-${VERSION}
 	tar -czf nwm-${VERSION}.tar.gz nwm-${VERSION}
 	rm -rf nwm-${VERSION}
 
@@ -66,8 +68,11 @@ clean:
 install: all
 	mkdir -p ${DESTDIR}${BINDIR}
 	install -m 755 nwm ${DESTDIR}${BINDIR}/nwm
+	mkdir -p ${DESTDIR}${MANDIR}
+	sed "s/VERSION/${VERSION}/g" < nwm.1 > ${DESTDIR}${MANDIR}/nwm.1
+	chmod 644 ${DESTDIR}${MANDIR}/nwm.1
 
 uninstall:
-	rm -f ${DESTDIR}${BINDIR}/nwm
+	rm -f ${DESTDIR}${BINDIR}/nwm ${DESTDIR}${MANDIR}/nwm.1
 
 .PHONY: all clean debug dist install uninstall

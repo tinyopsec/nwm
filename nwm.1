@@ -1,0 +1,442 @@
+.TH NWM 1 nwm\-VERSION
+.SH NAME
+nwm \- nano window manager
+.SH SYNOPSIS
+.B nwm
+.RB [ \-v ]
+.SH DESCRIPTION
+nwm is a minimal tiling window manager for X11. It manages windows in
+three layouts (tiling, floating and monocle), groups them with tags and
+draws nothing except window borders. It has no built-in bar; an external
+EWMH-aware bar can be used instead (see
+.BR "EXTERNAL BARS" ).
+.P
+nwm is configured at compile time only. There is no configuration file,
+no IPC and no reload mechanism. See
+.BR CUSTOMIZATION .
+.P
+nwm manages the whole X screen as a single monitor. It does not start any
+other programs by itself; start background programs from
+.I ~/.xinitrc
+before the
+.B exec nwm
+line.
+.SH OPTIONS
+.TP
+.B \-v
+Print version information to standard output and exit.
+.P
+Any other argument prints a usage message to standard error and exits.
+.SH USAGE
+Add the following line as the last command of
+.IR ~/.xinitrc :
+.P
+.RS
+.EX
+exec nwm
+.EE
+.RE
+.P
+For a display manager, install a session file such as
+.IR /usr/share/xsessions/nwm.desktop .
+.SS Tags
+nwm has one tag per entry of
+.B tags[]
+(nine by default, at most 31). Every window carries a tag bitmask and the
+current view is a bitmask. A window is visible when its tags and the
+current view have at least one tag in common, so one window can be shown
+on several tags, and several tags can be viewed at once.
+.P
+.B Mod+Tab
+returns to the previously saved view, including combined multi-tag views.
+It is not simply "the previous tag": nwm keeps two view slots and flips
+between them on each view change.
+.SS Layouts
+.TP
+.B tiling
+Master and stack areas. The number of master windows and the master area
+size can be changed at run time. Floating windows are not tiled.
+.TP
+.B floating
+Windows keep their own geometry. Gaps are not applied.
+.TP
+.B monocle
+Every visible window fills the work area; the focused one is on top.
+Gaps are applied.
+.P
+The layout, master factor and master count are stored per tag unless
+.B NWM_WITH_PERTAG
+is set to 0. When several tags are viewed, the state of the lowest
+numbered visible tag is used.
+.SS Floating windows
+Dialog windows (\fB_NET_WM_WINDOW_TYPE_DIALOG\fR), windows that request
+fullscreen and windows matched by a floating rule are floating. A floating
+window respects ICCCM size hints. A focused floating window keeps focus
+when the pointer moves over tiled windows. Moving or resizing a tiled
+window by more than
+.B snap
+pixels makes it floating.
+.SS Fullscreen
+A fullscreen window covers the whole screen, including a bar. While it is
+focused,
+.B Mod+j
+and
+.B Mod+k
+and focus-follows-mouse do not change focus.
+.SH KEY BINDINGS
+The default modifier
+.B Mod
+is the Super (Windows) key. Change
+.B MODKEY
+in
+.I nwm.h
+to use another one, for example
+.B Mod1Mask
+for Alt.
+.SS Windows and layouts
+.TP
+.B Mod+Return
+Spawn a terminal (default:
+.BR st (1)).
+.TP
+.B Mod+d
+Spawn a launcher (default:
+.BR dmenu_run (1)).
+.TP
+.B Mod+j
+Focus the next window. In tiling layouts floating windows are skipped.
+.TP
+.B Mod+k
+Focus the previous window. In tiling layouts floating windows are skipped.
+.TP
+.B Mod+h
+Shrink the master area by 5%.
+.TP
+.B Mod+l
+Grow the master area by 5%.
+.TP
+.B Mod+i
+Increase the number of master windows.
+.TP
+.B Mod+o
+Decrease the number of master windows.
+.TP
+.B Mod+Space
+Promote the focused window to master. If it already is the master, the
+next tiled window is promoted instead.
+.TP
+.B Mod+t
+Select the tiling layout.
+.TP
+.B Mod+f
+Select the floating layout.
+.TP
+.B Mod+m
+Select the monocle layout.
+.TP
+.B Mod+F11
+Toggle fullscreen for the focused window.
+.TP
+.B Mod+Shift+Space
+Toggle floating for the focused window.
+.TP
+.B Mod+q
+Close the focused window. nwm sends
+.B WM_DELETE_WINDOW
+if the client supports it and kills the client otherwise.
+.TP
+.B Mod+Shift+e
+Quit nwm.
+.SS Tags
+.TP
+.B Mod+1\-9
+View tag
+.IR N .
+.TP
+.B Mod+Ctrl+1\-9
+Toggle tag
+.I N
+in the current view.
+.TP
+.B Mod+Shift+1\-9
+Move the focused window to tag
+.IR N .
+.TP
+.B Mod+Ctrl+Shift+1\-9
+Toggle tag
+.I N
+on the focused window.
+.TP
+.B Mod+0
+View all tags.
+.TP
+.B Mod+Shift+0
+Put the focused window on all tags.
+.TP
+.B Mod+Tab
+Return to the previous view.
+.SS Mouse
+These apply when the modifier is held over a client window.
+.TP
+.B Mod+Button1
+Move the window.
+.TP
+.B Mod+Button2
+Toggle floating.
+.TP
+.B Mod+Button3
+Resize the window. The pointer is moved to the bottom-right corner of
+the window.
+.P
+While moving a window with
+.BR Mod+Button1 ,
+pressing
+.B Mod+1\-9
+carries the window to that tag and switches the view to it; the drag
+continues, so the window can be dropped there or carried further.
+.B Mod+0
+sends the window to all tags. Other bindings are ignored during a drag.
+This reuses the
+.B view
+bindings from
+.BR keys[] ,
+so rebinding them rebinds this too.
+.P
+All bindings are defined in the
+.B keys[]
+and
+.B buttons[]
+arrays in
+.IR nwm.h .
+.SH EXTERNAL BARS
+nwm draws no bar and has no status text. It cooperates with external
+bars (for example
+.BR polybar (1),
+.BR tint2 (1)
+or
+.BR lemonbar (1))
+through standard EWMH hints, so a bar needs no support code in nwm and
+can be started before or after nwm.
+.SS Docks and reserved space
+A window of type
+.B _NET_WM_WINDOW_TYPE_DOCK
+is not a client: nwm maps it as it is and gives it no border, tag or
+focus handling. The screen edges it reserves with
+.B _NET_WM_STRUT_PARTIAL
+(or the older
+.BR _NET_WM_STRUT )
+are removed from the work area. Tiling, monocle, new floating windows and
+drag snapping use the area that is left, and nwm publishes it as
+.BR _NET_WORKAREA .
+.P
+The work area is recalculated when a dock appears or disappears and when
+its strut property changes. Details:
+.IP \(bu 2
+Per edge the largest strut wins; struts of several docks are not added up.
+.IP \(bu 2
+Strut start and end ranges are ignored, because the whole X screen is one
+monitor.
+.IP \(bu 2
+At most 8 docks are tracked (\fBdocks[8]\fR in
+.IR nwm.c ).
+Further docks are mapped but reserve no space.
+.IP \(bu 2
+Fullscreen windows still cover the whole screen, bar included.
+.IP \(bu 2
+A panel that does not set the dock type is managed as an ordinary window.
+A bar that is override-redirect is never seen by nwm: nothing is
+reserved and it may overlap windows.
+.SS Tags as desktops
+Every tag is an EWMH desktop, so a bar can show tag names, the current tag
+and occupied tags:
+.TP
+.B _NET_NUMBER_OF_DESKTOPS
+The number of entries in
+.BR tags[] .
+.TP
+.B _NET_DESKTOP_NAMES
+The names from
+.BR tags[] .
+.TP
+.B _NET_DESKTOP_GEOMETRY, _NET_DESKTOP_VIEWPORT
+Published for completeness; desktops are not larger than the screen and
+the viewport is always 0,0.
+.TP
+.B _NET_CURRENT_DESKTOP
+The lowest tag of the current view.
+.TP
+.B _NET_WM_DESKTOP
+Set on every client: the lowest tag of the window, or 0xFFFFFFFF if the
+window is on all tags.
+.TP
+.B _NET_CLIENT_LIST, _NET_ACTIVE_WINDOW
+The managed windows and the focused one, for taskbars and title widgets.
+.P
+These properties are written only when their value changes, and are
+removed when nwm exits.
+.SS What a bar can do
+.IP \(bu 2
+Switch tags: send
+.B _NET_CURRENT_DESKTOP
+to the root window. The view becomes that single tag; an index outside
+the range of
+.B tags[]
+is ignored.
+.IP \(bu 2
+Activate a window (for example a click in a taskbar): this only marks the
+window urgent, so its border gets the urgent color. nwm does not move
+focus on such requests, to avoid focus stealing.
+.IP \(bu 2
+It cannot move windows between tags: the
+.B _NET_WM_DESKTOP
+client message is not handled.
+.SS Setting up a bar
+Start the bar from
+.I ~/.xinitrc
+(nwm has no autostart):
+.P
+.RS
+.EX
+polybar main &
+exec nwm
+.EE
+.RE
+.P
+For
+.BR polybar (1)
+use a normal window,
+.B override-redirect = false
+in the bar section, and the
+.B internal/xworkspaces
+and
+.B internal/xwindow
+modules with
+.BR "enable-click = true" .
+For
+.BR lemonbar (1)
+pass
+.B \-d
+so that the bar is a docked window. Tag names come from
+.BR tags[] ;
+recompile to rename them, for example to
+.IR web ,
+.IR dev
+and
+.IR mail .
+.SH CUSTOMIZATION
+nwm is customized by editing
+.I nwm.h
+and recompiling:
+.P
+.RS
+.EX
+$ $EDITOR nwm.h
+$ make clean install
+.EE
+.RE
+.P
+Then restart nwm. The most important options are:
+.TP
+.B MODKEY
+Modifier key used by all default bindings.
+.TP
+.B borderpx
+Border width in pixels.
+.TP
+.B col_nborder, col_sborder, col_uborder
+Border colors of inactive, focused and urgent windows.
+.TP
+.B gappx
+Gap between windows and screen edges.
+.TP
+.B mfact, nmaster
+Initial master area ratio (0.05\-0.95) and number of master windows.
+.TP
+.B snap
+Snap and float-on-drag threshold in pixels.
+.TP
+.B attachbottom
+If 1, new windows are appended to the end of the client list.
+.TP
+.B focusonopen
+If 0, a new window does not take focus.
+.TP
+.B tags[]
+Tag names; the number of entries is the number of tags.
+.TP
+.B termcmd, dmenucmd
+Commands started by
+.B Mod+Return
+and
+.BR Mod+d .
+.TP
+.B NWM_WITH_BORDERS, NWM_WITH_GAPS, NWM_WITH_PERTAG
+Set to 0 to remove the corresponding code and data from the build.
+.SS Window rules
+Rules are listed in the
+.B rules[]
+array in
+.IR nwm.h .
+Each rule has the fields
+.IR class ,
+.IR instance ,
+.I title
+(a substring of the window title),
+.I tags
+(a tag bitmask, 0 keeps the current tags) and
+.I isfloating
+(1 floating, 0 tiled, \-1 default). Only the first matching rule is
+applied. Dialog and fullscreen windows are made floating after the
+rules are applied.
+.SH ENVIRONMENT
+.TP
+.B DISPLAY
+The X server to connect to.
+.SH EXIT STATUS
+nwm exits with 0 when it is quit normally (for example with
+.BR Mod+Shift+e ).
+It exits with a non-zero status if it cannot open the display, if another
+window manager is already running, or on a fatal error.
+.SH STANDARDS
+nwm implements parts of the ICCCM and EWMH specifications:
+.BR WM_DELETE_WINDOW ,
+.BR WM_TAKE_FOCUS ,
+.BR WM_NORMAL_HINTS ,
+.BR WM_HINTS ,
+.BR WM_STATE ,
+.B _NET_SUPPORTED
+and the other hints named above. On OpenBSD nwm uses
+.BR pledge (2).
+.SH BUGS AND LIMITATIONS
+.IP \(bu 2
+The screen size is read once at startup. RandR, multiple monitors and
+resolution changes are not handled.
+.IP \(bu 2
+There is no minimize or iconify support.
+.IP \(bu 2
+Changes to
+.B _NET_WM_STATE
+after a window is mapped are not tracked; state changes made through
+client messages are honored.
+.IP \(bu 2
+A request to activate a window
+.RB ( _NET_ACTIVE_WINDOW )
+only marks it urgent and does not move focus. The
+.B _NET_WM_DESKTOP
+client message is not handled, so a bar cannot move windows between tags.
+.IP \(bu 2
+.B _NET_CLIENT_LIST_STACKING
+and
+.B _NET_SHOWING_DESKTOP
+are not implemented.
+.P
+Report bugs at
+.IR https://github.com/tinyopsec/nwm/issues .
+.SH SEE ALSO
+.BR dwm (1),
+.BR dmenu (1),
+.BR st (1),
+.BR startx (1),
+.BR xinit (1)
+.SH AUTHORS
+See the LICENSE file for copyright details (MIT).
