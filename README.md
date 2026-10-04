@@ -9,8 +9,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-33ACB4?style=flat&labelColor=0E2426&logo=opensourceinitiative&logoColor=33ACB4" alt="license MIT">
   <img src="https://img.shields.io/badge/C99%20%2F%20POSIX-46B9B4?style=flat&label=lang&labelColor=0E2426&logo=c&logoColor=46B9B4" alt="C99 / POSIX">
-  <img src="https://img.shields.io/badge/%7E2147%20lines-59C6B5?style=flat&label=source&labelColor=0E2426&logo=files&logoColor=59C6B5" alt="about 2147 lines">
-  <img src="https://img.shields.io/badge/1.5.2-6CD4B5?style=flat&label=version&labelColor=0E2426&logo=tag&logoColor=6CD4B5" alt="version 1.5.2">
+  <img src="https://img.shields.io/badge/%7E1700%20lines-59C6B5?style=flat&label=source&labelColor=0E2426&logo=files&logoColor=59C6B5" alt="about 1700 lines">
+  <img src="https://img.shields.io/badge/1.5.3-6CD4B5?style=flat&label=version&labelColor=0E2426&logo=tag&logoColor=6CD4B5" alt="version 1.5.3">
   &nbsp;
   <img src="https://img.shields.io/badge/Linux-7EE1B5?style=flat&labelColor=0E2426&logo=linux&logoColor=7EE1B5" alt="Linux">
   <img src="https://img.shields.io/badge/OpenBSD-91EEB6?style=flat&labelColor=0E2426&logo=openbsd&logoColor=91EEB6" alt="OpenBSD">
@@ -64,14 +64,13 @@ startx
 
 | Area | dwm | nwm |
 |---|---|---|
-| Lines of code | ~2901 total (.h / .c) | ~2147 (fits in one reading session) |
+| Lines of code | ~2901 total (.h / .c) | ~1700 (fits in one reading session) |
 | RAM at idle | ~5–15 MB | ~3–8 MB on my PC (leaner process image) |
-| Tiling arithmetic | Can accumulate pixel remainder | Integer division, remainder assigned to the last window |
+| Tiling arithmetic | Height of each window computed from the space left | Integer division, remainder assigned to the last window |
 | Gap support | Requires patching | Built in via `gappx` |
 | Mod+Tab behavior | Inconsistent across patches | Deterministic XOR two-slot history |
-| OpenBSD `pledge(2)` | Not supported | Supported natively |
 | POSIX compliance | Uses GNU extensions in places | Strict C99 / POSIX orientation |
-| Status bar | Built-in bar, requires patching to remove | No bar; use any external panel or none |
+| Status bar | Built-in bar, requires patching to remove | No bar; use any external panel or none (no dock/strut support, see [How It Works](#how-it-works)) |
 | Config complexity | ~100–150 lines of config + patch management | Single flat `nwm.h`, no patch stack |
 | Audit surface | Large: bar, fonts, drawing code | Minimal: window management only |
 
@@ -87,8 +86,8 @@ If you already run a patched dwm, `nwm` is roughly what you end up with after ap
 |---|---|
 | Layouts | Tiling (master/stack), floating, monocle |
 | Workspaces | 9 tags via bitmasks; windows may carry multiple tags |
-| Mouse support | Move, resize, toggle floating via modifier + button |
-| Gaps | Configurable `gappx`; all layouts respect gaps |
+| Mouse support | Move, resize, toggle floating via modifier + button; carry a dragged window to another tag with the tag keys |
+| Gaps | Configurable `gappx`; tiling and monocle respect gaps, floating does not |
 | Borders | Inactive, focused, and urgent colors at compile time |
 | Fullscreen | Toggle via keybind or `_NET_WM_STATE_FULLSCREEN` |
 | Urgent hints | `XUrgencyHint` and `_NET_ACTIVE_WINDOW` handled as urgency |
@@ -105,7 +104,7 @@ If you already run a patched dwm, `nwm` is roughly what you end up with after ap
 <img src="https://raw.githubusercontent.com/tinyopsec/distrohop/main/assets/alpine.webp" width="49%" alt="nwm on Alpine Linux rice, my pc btw: three terminals tiled in master/stack layout">
 <img src="https://raw.githubusercontent.com/tinyopsec/distrohop/main/assets/arch.webp" width="49%" alt="nwm master/stack with browser in master and two terminals in stack">
 
-### These are my screenshots.
+These are my screenshots.
 
 ---
 
@@ -142,13 +141,14 @@ Package: [aur.archlinux.org/packages/nwm](https://aur.archlinux.org/packages/nwm
 <details>
 <summary>FreeBSD / OpenBSD / NetBSD / DragonFly</summary>
 
-Install Xlib via the system package manager, then edit the top of the `Makefile` to point at your system's X11 paths. The relevant lines are already present but commented out:
+Install Xlib via the system package manager. The `Makefile` defaults to the OpenBSD paths (`/usr/X11R6`). For other systems, edit `X11INC` and `X11LIB` at the top of the `Makefile`; the alternatives are already present but commented out, for example FreeBSD / DragonFly:
 
 ```make
-# Uncomment for OpenBSD / FreeBSD:
-# INCS = -I/usr/X11R6/include
-# LIBS = -L/usr/X11R6/lib -lX11
+X11INC = /usr/local/include
+X11LIB = /usr/local/lib
 ```
+
+NetBSD (pkgsrc) uses `/usr/pkg/include` and `/usr/pkg/lib`.
 
 Then build normally:
 
@@ -180,7 +180,7 @@ feh --bg-scale ~/wallpaper.png &
 exec nwm
 ```
 
-`nwm` has no built-in autostart. Launch background processes from `.xinitrc` or a wrapper script before the `exec` line.
+`nwm -v` prints the version. `nwm` has no built-in autostart. Launch background processes from `.xinitrc` or a wrapper script before the `exec` line.
 
 ### Display Managers
 
@@ -226,13 +226,13 @@ The default modifier is Super (Win). To use Alt instead, change `#define MODKEY 
 |---|---|
 | Mod + Return | Spawn terminal |
 | Mod + d | Spawn launcher (dmenu or whatever you chose) |
-| Mod + j | Focus next window in stack |
-| Mod + k | Focus previous window in stack |
+| Mod + j | Focus next window in the client list (floating windows are skipped in tiling layouts) |
+| Mod + k | Focus previous window in the client list (floating windows are skipped in tiling layouts) |
 | Mod + h | Shrink master area by 5% |
 | Mod + l | Grow master area by 5% |
 | Mod + i | Increase master window count |
 | Mod + o | Decrease master window count |
-| Mod + Space | Promote focused window to master |
+| Mod + Space | Promote focused window to master (if it is already master, the next tiled window is promoted) |
 | Mod + t | Tiling layout |
 | Mod + f | Floating layout |
 | Mod + m | Monocle layout |
@@ -256,6 +256,8 @@ The default modifier is Super (Win). To use Alt instead, change `#define MODKEY 
 > [!NOTE]
 > `Mod+Tab` is not a simple "previous tag" shortcut. It uses a two-slot XOR mechanism. It restores the previous tag bitmask saved by the last view change, including combined multi-tag views.
 
+The number of tags is the length of `tags[]` in `nwm.h`, from 1 to 31 (checked at compile time). `TAGKEYS` entries beyond that number do nothing.
+
 ### Mouse (modifier held over a client window)
 
 | Button | Action |
@@ -266,6 +268,8 @@ The default modifier is Super (Win). To use Alt instead, change `#define MODKEY 
 
 Dragging or resizing a tiled window beyond `snap` pixels from its position automatically makes it floating. The `snap` threshold is configurable in `nwm.h`.
 
+While dragging with Mod + Button1, press Mod + 1-9 to carry the window to that tag and switch the view to it. The drag continues, so you can drop the window in place or press another tag key. This reuses the `view` bindings from `keys[]`, so rebinding them in `nwm.h` rebinds this too; Mod + 0 sends the window to all tags, other bindings are ignored during a drag.
+
 All bindings are defined in the `keys[]` and `buttons[]` arrays in `nwm.h`.
 
 ---
@@ -275,7 +279,7 @@ All bindings are defined in the `keys[]` and `buttons[]` arrays in `nwm.h`.
 `nwm` is configured at compile time by editing `nwm.h`. There is no config file, no IPC, no reload mechanism.
 
 > [!IMPORTANT]
-> After every change to `nwm.h`, run `make && sudo make install` and restart nwm. pls
+> After every change to `nwm.h`, run `make && sudo make install` and restart nwm.
 
 ### Options
 
@@ -289,8 +293,11 @@ All bindings are defined in the `keys[]` and `buttons[]` arrays in `nwm.h`.
 | `mfact` | `0.5` | Master area ratio (0.05–0.95) |
 | `nmaster` | `1` | Initial number of master windows |
 | `snap` | `16` | Edge snap / float-on-drag threshold in pixels |
-| `attachbottom` | `0` | Set to `1` to append new windows at bottom of stack |
+| `attachbottom` | `0` | Set to `1` to append new windows at the end of the client list (tiling order). A new window still goes to the top of the focus stack |
 | `focusonopen` | `1` | Set to `0` to keep focus on the current window when a new one opens |
+| `NWM_WITH_BORDERS` | `1` | `0` removes border colors; new windows get border width `0` |
+| `NWM_WITH_GAPS` | `1` | `0` removes `gappx`; tiling and monocle use zero gaps |
+| `NWM_WITH_PERTAG` | `1` | `0` removes per-tag state: one layout, `mfact` and `nmaster` for all tags |
 
 ### Modifier Key
 
@@ -327,28 +334,25 @@ Fields:
 |---|---|
 | `class` | `WM_CLASS` class |
 | `instance` | `WM_CLASS` instance |
-| `title` | window title substring |
+| `title` | substring of the window title (`WM_NAME`) |
 | `tags` | tag bitmask, or `0` to keep current tags |
 | `isfloating` | `1` floating, `0` tiled, `-1` keep default decision |
 
-If no rule matches, `nwm` keeps its default floating decision.
+Only the first matching rule is applied. If no rule matches, `nwm` keeps its default floating decision. Dialog windows and windows that request fullscreen are made floating after the rules are applied, regardless of `isfloating`. A `tags` value with no valid tag bits is ignored.
 
 ---
 
 ## How It Works
 
-Thanks for https://github.com/mermaid-js/mermaid.
-
-`nwm` manages windows through a flat client list and a parallel focus stack. The tiling algorithm divides the screen into a master area and a stack area, computing tile sizes with integer arithmetic: no floating-point accumulation, no pixel drift across redraws. The remaining pixels are assigned to the last window in each column.
+`nwm` manages windows through a flat client list and a parallel focus stack. The tiling algorithm divides the screen into a master area and a stack area, computing tile sizes with integer arithmetic, so there is no pixel drift across redraws. The remaining pixels are assigned to the last window in each column. Only the master width is derived from the floating-point `mfact`, which is clamped to 0.05–0.95.
 
 Tags are bitmasks. Each client carries a tag bitmask; the active view is a bitmask. A client is visible when the bitwise AND of its tags and the current view is nonzero. This means one window can appear on multiple tags simultaneously.
 
-Layout and tag history both use a two-slot XOR system. `nwm` keeps the current and previous values in a two-element array and flips an index bit on each change. `Mod+Tab` flips the index back for tag views, returning to the previous saved tag mask.
+Tag history uses a two-slot XOR system. `nwm` keeps the current and previous tag masks in a two-element array and flips an index bit on each change. `Mod+Tab` flips the index back, returning to the previous saved tag mask. Layouts are stored the same way, but only the current slot is used: there is no binding to return to the previous layout.
 
 `nwm` also keeps minimal per-tag state:
 
-- current and previous layout
-- layout selection slot
+- current layout
 - master factor
 - master window count
 
@@ -358,9 +362,19 @@ Some behavior is intentionally explicit:
 
 - `_NET_ACTIVE_WINDOW` requests are not used to force focus; they mark the window as urgent instead.
 - Tiled windows ignore size hints where needed to keep tiling deterministic.
-- Floating windows respect ICCCM size hints.
+- Floating windows respect ICCCM size hints, including geometry requested by the client itself.
+- Border width is always `borderpx`; clients cannot change it. A fullscreen window ignores geometry requests from its client.
 - Dialog windows (`_NET_WM_WINDOW_TYPE_DIALOG`) float automatically.
-- Monocle respects `gappx`.
+- Monocle respects `gappx`; the floating layout does not.
+- In tiling layouts `Mod+j` / `Mod+k` skip floating windows; focus those with the mouse.
+- A focused floating window keeps focus when the pointer moves over tiled windows.
+- While a fullscreen window is focused, `Mod+j` / `Mod+k` and focus-follows-mouse do not change focus.
+- Mouse resize moves the pointer to the bottom-right corner of the window.
+- The screen size is read once at startup. RandR, multi-monitor layouts and resolution changes are not handled; the whole X screen is treated as one monitor.
+- There is no minimize/iconify support. Windows left iconic by a previous window manager are mapped on startup.
+- `_NET_WM_STATE` is read when a window is mapped and honored via client messages; later changes to the property itself are not tracked.
+- Not implemented: `_NET_NUMBER_OF_DESKTOPS`, `_NET_CURRENT_DESKTOP`, `_NET_WM_DESKTOP`, `_NET_CLIENT_LIST_STACKING`.
+- `_NET_WM_WINDOW_TYPE_DOCK` and `_NET_WM_STRUT*` are not supported. A panel that is not override-redirect is managed as an ordinary window and does not reduce the tiling area.
 
 It’s hard to explain in words, but you can grasp the entire code structure if you spend an hour reading the code.
 
@@ -421,21 +435,14 @@ Thanks to my friends for their help, and I also thank these resources:
 - shields.io
 - capsule-render from vercel (Very beautiful)
 - demolab.com
-- contrib.rocks
-- repobeats.axiom.co
 - star-history.com
-- github-profile-trophy
-- Ross Maloney for Fundamentals of Xlib Programming by Examples
-
-https://www.linux.co.cr/desktops/review/acrobat/030103.pdf
+- Ross Maloney for Fundamentals of Xlib Programming by Examples: https://www.linux.co.cr/desktops/review/acrobat/030103.pdf
 
 Sorry for the English; I'm using a translator.
 
 I removed the original Russian comments from the code; the remaining comments are short and in English.
 
-All screenshots are mine.
-
-https://upload.wikimedia.org/wikipedia/commons/d/d2/Terry_A.Davis%28cropped%29.jpg
+Photo of Terry A. Davis (Wikimedia Commons): https://upload.wikimedia.org/wikipedia/commons/d/d2/Terry_A.Davis%28cropped%29.jpg
 
 </details>
 

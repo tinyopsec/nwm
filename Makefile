@@ -1,7 +1,7 @@
 # nwm - Nano window manager
 # See LICENSE file for copyright and license details.
 
-VERSION = 1.5
+VERSION = 1.5.3
 
 PREFIX  = /usr/local
 BINDIR  = ${PREFIX}/bin
@@ -56,7 +56,7 @@ debug: ${SRC} nwm.h
 
 dist: clean
 	mkdir -p nwm-${VERSION}
-	cp -R nwm.c nwm.h Makefile LICENSE nwm-${VERSION}
+	cp -R nwm.c nwm.h Makefile LICENSE README.md nwm-${VERSION}
 	tar -czf nwm-${VERSION}.tar.gz nwm-${VERSION}
 	rm -rf nwm-${VERSION}
 

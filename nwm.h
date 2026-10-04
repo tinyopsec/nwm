@@ -18,8 +18,6 @@
  * NWM_WITH_PERTAG = 0:
  *   - no per-tag layout/master/mfact/nmaster state;
  *   - saves a small static array and related logic
- * meow meow meow meow meow meow meow
- * i use void linux btw;
  */
 #define NWM_WITH_BORDERS 1
 #define NWM_WITH_GAPS    1
