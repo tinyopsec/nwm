@@ -514,8 +514,6 @@ configurerequest(XEvent *e)
 		if (VIS(c)) {
 			applysizehints(c, &x, &y, &w, &h, 0);
 			resizeclient(c, x, y, w, h);
-			if (c->isfloating)
-				XRaiseWindow(display, c->win);
 			return;
 		}
 		c->x = x; c->y = y; c->w = w; c->h = h;
@@ -1104,7 +1102,11 @@ restack(void)
 		return;
 	}
 
-	/* Tiled windows go below each other in focus order, floating on top. */
+	/*
+	 * Lowering tiled windows to the bottom already leaves floating ones above
+	 * them; do not re-raise floating windows, clients restack their own
+	 * dialogs and panels and would fight back.
+	 */
 	wc.stack_mode = Below;
 	wc.sibling = None;
 	for (c = stack; c; c = c->snext) {
@@ -1114,9 +1116,6 @@ restack(void)
 		                 wc.sibling ? CWSibling | CWStackMode : CWStackMode, &wc);
 		wc.sibling = c->win;
 	}
-	for (c = stack; c; c = c->snext)
-		if (c->isfloating && VIS(c))
-			XRaiseWindow(display, c->win);
 	if (sel->isfloating)
 		XRaiseWindow(display, sel->win);
 }
