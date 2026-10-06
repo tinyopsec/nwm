@@ -828,6 +828,10 @@ manage(Window w, XWindowAttributes *wa)
 		c->isfloating = c->oldstate = rule_floating;
 	updatewindowtype(c);
 
+	/* Free windows are not placed by a layout: normalize their geometry now. */
+	if (!c->isfullscreen && FREE(c))
+		resize(c, c->x, c->y, c->w, c->h, 0);
+
 	XSelectInput(display, w, EnterWindowMask | FocusChangeMask |
 	                         PropertyChangeMask | StructureNotifyMask);
 	grabbuttons(c, 0);
