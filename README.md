@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/badge/license-MIT-33ACB4?style=flat&labelColor=0E2426&logo=opensourceinitiative&logoColor=33ACB4" alt="license MIT">
   <img src="https://img.shields.io/badge/C99%20%2F%20POSIX-46B9B4?style=flat&label=lang&labelColor=0E2426&logo=c&logoColor=46B9B4" alt="C99 / POSIX">
   <img src="https://img.shields.io/badge/%7E1800%20lines-59C6B5?style=flat&label=source&labelColor=0E2426&logo=files&logoColor=59C6B5" alt="about 1800 lines">
-  <img src="https://img.shields.io/badge/1.6.2-6CD4B5?style=flat&label=version&labelColor=0E2426&logo=tag&logoColor=6CD4B5" alt="version 1.6.2">
+  <img src="https://img.shields.io/badge/1.6.3-6CD4B5?style=flat&label=version&labelColor=0E2426&logo=tag&logoColor=6CD4B5" alt="version 1.6.3">
   &nbsp;
   <img src="https://img.shields.io/badge/Linux-7EE1B5?style=flat&labelColor=0E2426&logo=linux&logoColor=7EE1B5" alt="Linux">
   <img src="https://img.shields.io/badge/OpenBSD-91EEB6?style=flat&labelColor=0E2426&logo=openbsd&logoColor=91EEB6" alt="OpenBSD">
@@ -99,7 +99,7 @@ If you already run a patched dwm, `nwm` is roughly what you end up with after ap
 | Fullscreen | Toggle via keybind or `_NET_WM_STATE_FULLSCREEN` |
 | Urgent hints | `XUrgencyHint` and `_NET_ACTIVE_WINDOW` handled as urgency |
 | Auto-float | `_NET_WM_WINDOW_TYPE_DIALOG` windows float automatically |
-| EWMH | `_NET_SUPPORTED`, `_NET_WM_STATE`, `_NET_ACTIVE_WINDOW`, `_NET_CLIENT_LIST`, `_NET_SUPPORTING_WM_CHECK`, `_NET_WM_WINDOW_TYPE`, `_NET_WM_WINDOW_TYPE_DIALOG`, `_NET_WM_WINDOW_TYPE_DOCK`, `_NET_WM_STRUT_PARTIAL`, `_NET_WM_STRUT`, `_NET_WORKAREA`, `_NET_NUMBER_OF_DESKTOPS`, `_NET_CURRENT_DESKTOP`, `_NET_DESKTOP_NAMES`, `_NET_DESKTOP_GEOMETRY`, `_NET_DESKTOP_VIEWPORT`, `_NET_WM_DESKTOP` |
+| EWMH | `_NET_SUPPORTED`, `_NET_WM_STATE`, `_NET_WM_STATE_FULLSCREEN`, `_NET_ACTIVE_WINDOW`, `_NET_CLIENT_LIST`, `_NET_SUPPORTING_WM_CHECK`, `_NET_WM_WINDOW_TYPE`, `_NET_WM_WINDOW_TYPE_DIALOG`, `_NET_WM_WINDOW_TYPE_DOCK`, `_NET_WM_STRUT_PARTIAL`, `_NET_WM_STRUT`, `_NET_WORKAREA`, `_NET_NUMBER_OF_DESKTOPS`, `_NET_CURRENT_DESKTOP`, `_NET_DESKTOP_NAMES`, `_NET_DESKTOP_GEOMETRY`, `_NET_DESKTOP_VIEWPORT`, `_NET_WM_DESKTOP` |
 | External bars | Docks are not managed; their struts shrink the tiling area; tags are exposed as EWMH desktops; a bar can switch tags |
 | ICCCM | `WM_DELETE_WINDOW`, `WM_TAKE_FOCUS`, `WM_NORMAL_HINTS`, `WM_HINTS`, `WM_STATE` |
 | OpenBSD | `pledge(2)` support; FreeBSD support is expected but not actively tested |
@@ -136,7 +136,7 @@ make
 sudo make install   # installs to /usr/local/bin/nwm
 ```
 
-Change `PREFIX` in the `Makefile` to install elsewhere.
+Change `PREFIX` in the `Makefile` to install elsewhere. To stage the install (packaging), use `make DESTDIR=/tmp/stage install`.
 
 ### AUR (Arch Linux)
 
@@ -429,7 +429,7 @@ Some behavior is intentionally explicit:
 - Mouse resize moves the pointer to the bottom-right corner of the window.
 - The screen size is read once at startup. RandR, multi-monitor layouts and resolution changes are not handled; the whole X screen is treated as one monitor.
 - There is no minimize/iconify support. Windows left iconic by a previous window manager are mapped on startup.
-- `_NET_WM_STATE` is read when a window is mapped and honored via client messages; later changes to the property itself are not tracked.
+- `_NET_WM_STATE` (only `_NET_WM_STATE_FULLSCREEN`) is read when a window is mapped and honored via client messages; later changes to the property itself are not tracked.
 - Every tag is an EWMH desktop. `_NET_CURRENT_DESKTOP` is the lowest tag of the current view (when several tags are shown), `_NET_WM_DESKTOP` of a window is its lowest tag (`0xFFFFFFFF` if it is on all tags), and `_NET_DESKTOP_NAMES` comes from `tags[]`. These properties are only written when something changed.
 - Windows of type `_NET_WM_WINDOW_TYPE_DOCK` are not clients: nwm maps them as they are, with no border, tag or focus handling. Their `_NET_WM_STRUT_PARTIAL` (or the older `_NET_WM_STRUT`) reserves screen edges; tiling, monocle, new floating windows and drag snapping use the area that is left, and `_NET_WORKAREA` is published. Per edge the largest strut wins (struts are not added up), strut start/end ranges are ignored because the whole X screen is one monitor, and at most 8 docks are tracked (`docks[8]` in `nwm.c`). Fullscreen windows still cover the whole screen, bar included. A panel that does not set the dock type is managed as an ordinary window.
 - A panel can switch tags by sending `_NET_CURRENT_DESKTOP`. Clicking a window in a taskbar sends `_NET_ACTIVE_WINDOW`, which only marks that window urgent (see above). The `_NET_WM_DESKTOP` client message is not handled, so a panel cannot move windows between tags.
@@ -500,8 +500,6 @@ Thanks to my friends for their help, and I also thank these resources:
 Sorry for the English; I'm using a translator.
 
 I removed the original Russian comments from the code; the remaining comments are short and in English.
-
-Photo of Terry A. Davis (Wikimedia Commons): https://upload.wikimedia.org/wikipedia/commons/d/d2/Terry_A.Davis%28cropped%29.jpg
 
 </details>
 

@@ -90,6 +90,7 @@ static void focusnext(const A *);
 static long getstate(Window);
 static void grabbuttons(C *, int);
 static void grabkeys(void);
+static void handleterm(int);
 static int hasatom(Window, Atom, Atom);
 static void incnmaster(const A *);
 static void keypress(XEvent *);
@@ -164,7 +165,8 @@ typedef char nwm_layouts_any[(LEN(layouts) >= 1) ? 1 : -1];
 
 static Display *display;
 static Window root, wmcheck_win;
-static int screen_w, screen_h, wx, wy, ww, wh, running = 1; /* wx..wh: area not covered by docks */
+static int screen_w, screen_h, wx, wy, ww, wh; /* wx..wh: area not covered by docks */
+static volatile sig_atomic_t running = 1;
 static unsigned int numlockmask, sel_group, tagsel[2];
 static Cursor cursor[3];
 static Atom wmatom[WMLast], netatom[NetLast];
@@ -199,7 +201,6 @@ die(const char *fmt, ...)
 	exit(1);
 }
 
-/* Index of the lowest tag in mask m. */
 static unsigned int
 lowtag(unsigned int m)
 {
@@ -414,9 +415,15 @@ cleanup(void)
 	/* Bring every window back on screen, including hidden ones. */
 	while ((c = clients)) {
 		clients = c->next;
-		wc.border_width = c->oldbw;
-		XConfigureWindow(display, c->win, CWBorderWidth, &wc);
-		XMoveWindow(display, c->win, c->x, c->y);
+		if (c->isfullscreen) { /* undo setfullscreen(): geometry, border, state */
+			XDeleteProperty(display, c->win, netatom[NetWMState]);
+			c->bw = c->oldbw;
+			resizeclient(c, c->oldx, c->oldy, c->oldw, c->oldh);
+		} else {
+			wc.border_width = c->oldbw;
+			XConfigureWindow(display, c->win, CWBorderWidth, &wc);
+			XMoveWindow(display, c->win, c->x, c->y);
+		}
 		setclientstate(c, WithdrawnState);
 		free(c);
 	}
@@ -461,8 +468,9 @@ clientmsg(XEvent *e)
 	if (ev->message_type == netatom[NetWMState] &&
 	    (ev->data.l[1] == (long)netatom[NetWMFullscreen] ||
 	     ev->data.l[2] == (long)netatom[NetWMFullscreen])) {
-		setfullscreen(c, ev->data.l[0] == 1 ||
-		                 (ev->data.l[0] == 2 && !c->isfullscreen));
+		if (ev->data.l[0] == 0 || ev->data.l[0] == 1 || ev->data.l[0] == 2)
+			setfullscreen(c, ev->data.l[0] == 1 ||
+			                 (ev->data.l[0] == 2 && !c->isfullscreen));
 	} else if (ev->message_type == netatom[NetActiveWindow] &&
 	           c != sel && !c->isurgent) {
 		/* Avoid focus stealing: activation requests become urgency hints. */
@@ -756,7 +764,7 @@ keypress(XEvent *e)
 	KeySym sym = XkbKeycodeToKeysym(display, ev->keycode, 0, 0);
 
 	for (i = 0; i < LEN(keys); i++) {
-		if (sym == keys[i].key &&
+		if (keys[i].fn && sym == keys[i].key &&
 		    CLEANMASK(keys[i].mod) == CLEANMASK(ev->state))
 			keys[i].fn(&keys[i].arg);
 	}
@@ -884,12 +892,14 @@ static void
 monocle(void)
 {
 	C *c;
-	int gap = GAP();
+	int gap = MIN((int)GAP(), MIN(ww, wh) / 2);
 
-	for (c = nexttiled(clients); c; c = nexttiled(c->next))
+	for (c = nexttiled(clients); c; c = nexttiled(c->next)) {
 		resize(c, wx + gap, wy + gap,
 		       MAX(1, ww - 2 * gap - (c->bw << 1)),
 		       MAX(1, wh - 2 * gap - (c->bw << 1)), 0);
+		configurenotify(c);
+	}
 }
 
 static void
@@ -932,9 +942,10 @@ movemouse(const A *arg)
 					continue;
 				c->tags = keys[i].arg.ui & TM;
 				view(&keys[i].arg);
-				ocx = c->x;
-				ocy = c->y;
-				XQueryPointer(display, root, &dw, &dw, &x, &y, &di, &di, &dui);
+				if (XQueryPointer(display, root, &dw, &dw, &x, &y, &di, &di, &dui)) {
+					ocx = c->x;
+					ocy = c->y;
+				}
 				break;
 			}
 		} else if (ev.type == MotionNotify) {
@@ -1015,6 +1026,13 @@ static void
 quit(const A *arg)
 {
 	(void)arg;
+	running = 0;
+}
+
+static void
+handleterm(int sig)
+{
+	(void)sig;
 	running = 0;
 }
 
@@ -1284,6 +1302,10 @@ setup(void)
 
 	if (signal(SIGCHLD, SIG_IGN) == SIG_ERR)
 		die("nwm: signal");
+	if (signal(SIGTERM, handleterm) == SIG_ERR ||
+	    signal(SIGINT, handleterm) == SIG_ERR ||
+	    signal(SIGHUP, handleterm) == SIG_ERR)
+		die("nwm: signal");
 
 	screen_w = DisplayWidth(display, scr);
 	screen_h = DisplayHeight(display, scr);
@@ -1368,7 +1390,7 @@ showhide(C *c)
 		if (!VIS(c))
 			XMoveWindow(display, c->win, -(W(c) + screen_w), c->y);
 		else if (FREE(c)) /* includes fullscreen: it must come back from off-screen */
-			XMoveWindow(display, c->win, c->x, c->y);
+			resizeclient(c, c->x, c->y, c->w, c->h);
 	}
 }
 
@@ -1376,8 +1398,14 @@ static void
 spawn(const A *arg)
 {
 	char *const *cmd = (char *const *)arg->v;
+	pid_t pid;
 
-	if (fork() == 0) {
+	pid = fork();
+	if (pid == -1) {
+		fprintf(stderr, "nwm: fork failed\n");
+		return;
+	}
+	if (pid == 0) {
 		close(ConnectionNumber(display));
 		signal(SIGCHLD, SIG_DFL);
 		setsid();
@@ -1402,11 +1430,13 @@ static C *
 col(C *c, unsigned int n, int x, int w)
 {
 	unsigned int i;
-	int gap = GAP(), y = wy + gap, h, rem = MAX(1, wh - (int)(n + 1) * gap);
+	int gap = MIN((int)GAP(), MIN(ww, wh) / 2);
+	int y = wy + gap, h, rem = MAX(1, wh - (int)(n + 1) * gap);
 
 	for (i = 0; c && i < n; c = nexttiled(c->next), i++) {
 		h = rem / (int)n + (i == n - 1 ? rem % (int)n : 0);
 		resize(c, x, y, MAX(1, w - (c->bw << 1)), MAX(1, h - (c->bw << 1)), 0);
+		configurenotify(c);
 		y += h + gap;
 	}
 	return c;
@@ -1417,7 +1447,7 @@ tile(void)
 {
 	C *c;
 	unsigned int n, nm, ns;
-	int gap = GAP(), mw;
+	int gap = MIN((int)GAP(), MIN(ww, wh) / 2), mw;
 
 	for (n = 0, c = nexttiled(clients); c; c = nexttiled(c->next))
 		n++;
