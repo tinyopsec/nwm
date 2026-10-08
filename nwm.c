@@ -821,7 +821,6 @@ manage(Window w, XWindowAttributes *wa)
 	wc.border_width = c->bw;
 	XConfigureWindow(display, w, CWBorderWidth, &wc);
 	BORDER(c, color_norm);
-	configurenotify(c);
 
 	c->isfloating = c->oldstate = (trans != None) || c->isfixed;
 	if (rule_floating >= 0)
@@ -831,6 +830,10 @@ manage(Window w, XWindowAttributes *wa)
 	/* Free windows are not placed by a layout: normalize their geometry now. */
 	if (!c->isfullscreen && FREE(c))
 		resize(c, c->x, c->y, c->w, c->h, 0);
+
+	/* Notify after geometry is final: clients base follow-up
+	 * ConfigureRequests (e.g. centered transients) on this. */
+	configurenotify(c);
 
 	XSelectInput(display, w, EnterWindowMask | FocusChangeMask |
 	                         PropertyChangeMask | StructureNotifyMask);
