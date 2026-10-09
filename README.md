@@ -331,7 +331,7 @@ Window rules are defined in `nwm.h`:
 ```c
 static const Rule rules[] = {
 	/* class     instance  title  tags  isfloating */
-	{ "Gimp",    NULL,     NULL,  0,    1 },
+	{ "Gimp",    NULL,     NULL,  0,    0 },
 	{ "MPlayer", NULL,     NULL,  0,    1 },
 };
 ```

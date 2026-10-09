@@ -105,8 +105,8 @@ static C *nexttiled(C *);
 static void pop(C *);
 static void propertynotify(XEvent *);
 static void quit(const A *);
-static void resize(C *, int, int, int, int, int);
-static void resizeclient(C *, int, int, int, int);
+static int resize(C *, int, int, int, int, int);
+static int resizeclient(C *, int, int, int, int);
 static void resizemouse(const A *);
 static void restack(void);
 static void run(void);
@@ -905,10 +905,12 @@ monocle(void)
 	int gap = MIN((int)GAP(), MIN(ww, wh) / 2);
 
 	for (c = nexttiled(clients); c; c = nexttiled(c->next)) {
-		resize(c, wx + gap, wy + gap,
-		       MAX(1, ww - 2 * gap - (c->bw << 1)),
-		       MAX(1, wh - 2 * gap - (c->bw << 1)), 0);
-		configurenotify(c);
+		/* No notify without a change: the client already got the real
+		 * ConfigureNotify when this geometry was set. */
+		if (resize(c, wx + gap, wy + gap,
+		           MAX(1, ww - 2 * gap - (c->bw << 1)),
+		           MAX(1, wh - 2 * gap - (c->bw << 1)), 0))
+			configurenotify(c);
 	}
 }
 
@@ -1050,23 +1052,25 @@ handleterm(int sig)
  * Tiled windows intentionally ignore size hints to keep the layout
  * deterministic. Floating windows respect ICCCM size hints.
  */
-static void
+static int
 resize(C *c, int x, int y, int w, int h, int interact)
 {
 	if (!(interact || FREE(c)) || applysizehints(c, &x, &y, &w, &h, interact))
-		resizeclient(c, x, y, w, h);
+		return resizeclient(c, x, y, w, h);
+	return 0;
 }
 
-static void
+static int
 resizeclient(C *c, int x, int y, int w, int h)
 {
 	XWindowChanges wc;
 
 	/* No X call means no ConfigureNotify storm. The hidden check forces
 	 * the return from off-screen: hide moves the window without touching
-	 * c->x, so coordinates alone look unchanged. */
+	 * c->x, so coordinates alone look unchanged. Returns 1 when the
+	 * server was touched, so callers send ConfigureNotify only then. */
 	if (c->x == x && c->y == y && c->w == w && c->h == h && !c->hidden)
-		return;
+		return 0;
 	c->hidden = 0;
 
 	c->oldx = c->x; c->x = wc.x = x;
@@ -1076,6 +1080,7 @@ resizeclient(C *c, int x, int y, int w, int h)
 	wc.border_width = c->bw;
 	XConfigureWindow(display, c->win,
 	                 CWX | CWY | CWWidth | CWHeight | CWBorderWidth, &wc);
+	return 1;
 }
 
 static void
@@ -1463,8 +1468,8 @@ col(C *c, unsigned int n, int x, int w)
 
 	for (i = 0; c && i < n; c = nexttiled(c->next), i++) {
 		h = rem / (int)n + (i == n - 1 ? rem % (int)n : 0);
-		resize(c, x, y, MAX(1, w - (c->bw << 1)), MAX(1, h - (c->bw << 1)), 0);
-		configurenotify(c);
+		if (resize(c, x, y, MAX(1, w - (c->bw << 1)), MAX(1, h - (c->bw << 1)), 0))
+			configurenotify(c);
 		y += h + gap;
 	}
 	return c;
