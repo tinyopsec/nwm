@@ -61,7 +61,7 @@ static const char *dmenucmd[] = { "dmenu_run", NULL };
 
 static const Rule rules[] = {
 	/* class     instance  title  tags  isfloating */
-	{ "Gimp",    NULL,     NULL,  0,    1 },
+	{ "Gimp",    NULL,     NULL,  0,    0 },
 	{ "MPlayer", NULL,     NULL,  0,    1 },
 };
 

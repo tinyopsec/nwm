@@ -1,7 +1,7 @@
 # nwm - Nano window manager
 # See LICENSE file for copyright and license details.
 
-VERSION = 1.6.3
+VERSION = 1.6.4
 
 PREFIX  = /usr/local
 BINDIR  = ${PREFIX}/bin
@@ -38,7 +38,7 @@ DBGFLAGS = -std=c99 -pedantic -Wall -Wextra \
            -Wstrict-prototypes -Wmissing-prototypes -Wshadow \
            -fno-common -g -O0 ${INCS} ${CPPFLAGS}
 
-CC = cc
+CC ?= cc
 
 SRC = nwm.c
 OBJ = ${SRC:.c=.o}

@@ -56,7 +56,7 @@ struct C {
 	int bw, oldbw;
 	unsigned int tags, pubtags;
 	unsigned int isfixed:1, isfloating:1, isurgent:1, neverfocus:1,
-	             oldstate:1, isfullscreen:1, hintsvalid:1;
+	             oldstate:1, isfullscreen:1, hintsvalid:1, hidden:1;
 	C *next, *snext;
 	Window win;
 };
@@ -520,10 +520,13 @@ configurerequest(XEvent *e)
 		if (ev->value_mask & CWHeight) h = ev->height;
 
 		if (VIS(c)) {
-			applysizehints(c, &x, &y, &w, &h, 0);
-			resizeclient(c, x, y, w, h);
+			/* Skip redundant requests: no X call means no
+			 * ConfigureNotify storm for hint rounding. */
+			if (applysizehints(c, &x, &y, &w, &h, 0))
+				resizeclient(c, x, y, w, h);
 			return;
 		}
+		applysizehints(c, &x, &y, &w, &h, 0);
 		c->x = x; c->y = y; c->w = w; c->h = h;
 	}
 	configurenotify(c);
@@ -835,19 +838,26 @@ manage(Window w, XWindowAttributes *wa)
 		c->isfloating = c->oldstate = rule_floating;
 	updatewindowtype(c);
 
-	/* Free windows are not placed by a layout: normalize their geometry now. */
+	/* Floating windows are normalized now (real ConfigureNotify).
+	 * Fullscreen was already configured by setfullscreen().
+	 * Tiled windows are configured by the pre-tile below. */
 	if (!c->isfullscreen && FREE(c))
 		resize(c, c->x, c->y, c->w, c->h, 0);
-
-	/* Notify after geometry is final: clients base follow-up
-	 * ConfigureRequests (e.g. centered transients) on this. */
-	configurenotify(c);
 
 	XSelectInput(display, w, EnterWindowMask | FocusChangeMask |
 	                         PropertyChangeMask | StructureNotifyMask);
 	grabbuttons(c, 0);
 	at(c);
 	updateclientlist();
+
+	/* Map at final geometry: tiling after Map flashes a small window,
+	 * stuck for many frames on slow machines under spawn flood. */
+	if (!VIS(c)) {
+		c->hidden = 1;
+		XMoveWindow(display, w, -(W(c) + screen_w), c->y);
+	} else if (!c->isfullscreen && !FREE(c) && ARR) {
+		ARR();
+	}
 
 	if (c->isfloating)
 		XMapRaised(display, w);
@@ -1051,6 +1061,13 @@ static void
 resizeclient(C *c, int x, int y, int w, int h)
 {
 	XWindowChanges wc;
+
+	/* No X call means no ConfigureNotify storm. The hidden check forces
+	 * the return from off-screen: hide moves the window without touching
+	 * c->x, so coordinates alone look unchanged. */
+	if (c->x == x && c->y == y && c->w == w && c->h == h && !c->hidden)
+		return;
+	c->hidden = 0;
 
 	c->oldx = c->x; c->x = wc.x = x;
 	c->oldy = c->y; c->y = wc.y = y;
@@ -1387,10 +1404,18 @@ static void
 showhide(C *c)
 {
 	for (; c; c = c->snext) {
-		if (!VIS(c))
-			XMoveWindow(display, c->win, -(W(c) + screen_w), c->y);
-		else if (FREE(c)) /* includes fullscreen: it must come back from off-screen */
-			resizeclient(c, c->x, c->y, c->w, c->h);
+		if (!VIS(c)) {
+			if (!c->hidden) {
+				XMoveWindow(display, c->win, -(W(c) + screen_w), c->y);
+				c->hidden = 1;
+			}
+		} else if (c->hidden) {
+			/* Back from off-screen. Floating windows return here;
+			 * tiled placement follows in ar(), and its resizeclient()
+			 * forces the return via the hidden flag. */
+			if (FREE(c)) /* includes fullscreen */
+				resizeclient(c, c->x, c->y, c->w, c->h);
+		}
 	}
 }
 
@@ -1408,6 +1433,9 @@ spawn(const A *arg)
 	if (pid == 0) {
 		close(ConnectionNumber(display));
 		signal(SIGCHLD, SIG_DFL);
+		signal(SIGTERM, SIG_DFL);
+		signal(SIGINT, SIG_DFL);
+		signal(SIGHUP, SIG_DFL);
 		setsid();
 		execvp(cmd[0], cmd);
 		fprintf(stderr, "nwm: execvp %s failed\n", cmd[0]);
