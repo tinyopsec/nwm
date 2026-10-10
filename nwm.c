@@ -520,10 +520,14 @@ configurerequest(XEvent *e)
 		if (ev->value_mask & CWHeight) h = ev->height;
 
 		if (VIS(c)) {
-			/* Skip redundant requests: no X call means no
-			 * ConfigureNotify storm for hint rounding. */
-			if (applysizehints(c, &x, &y, &w, &h, 0))
-				resizeclient(c, x, y, w, h);
+			/* No XConfigureWindow on redundant requests, but a denied
+			 * request still needs a synthetic ack: without it the client
+			 * keeps re-sending the same request (retry storm = flicker
+			 * and freeze until it gives up). The real ConfigureNotify
+			 * from the server already acks a granted request. */
+			if (!(applysizehints(c, &x, &y, &w, &h, 0) &&
+			      resizeclient(c, x, y, w, h)))
+				configurenotify(c);
 			return;
 		}
 		applysizehints(c, &x, &y, &w, &h, 0);
