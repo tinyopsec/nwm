@@ -146,6 +146,10 @@ static void zoom(const A *);
 
 #include "nwm.h"
 
+#ifndef VERSION
+#define VERSION "unknown"
+#endif
+
 typedef char nwm_tags_range[(LEN(tags) >= 1 && LEN(tags) < 32) ? 1 : -1];
 typedef char nwm_layouts_any[(LEN(layouts) >= 1) ? 1 : -1];
 
@@ -637,9 +641,34 @@ focus(C *c)
 static void
 focusin(XEvent *e)
 {
-	/* Some clients steal focus; give it back to the selected one. */
-	if (sel && e->xfocus.window != sel->win)
-		setfocus(sel);
+	C *c;
+	/*
+	 * A visible managed client taking focus (a modal dialog
+	 * re-asserting it) only resyncs local selection: answering
+	 * with XSetInputFocus fights the client at full speed
+	 * (focus ping-pong = flicker), the server echoes each
+	 * assertion back and the loop never ends. Only focus lost
+	 * to unmanaged windows is reclaimed.
+	 */
+	if (sel && e->xfocus.window != sel->win) {
+		c = wintoclient(e->xfocus.window);
+		if (c && VIS(c)) {
+			/* Adopt like focus(), minus XSetInputFocus/_NET_ACTIVE_WINDOW:
+			 * border, grabs and urgency never echo back (no ping-pong).
+			 * ACTIVE stays stale until the next real focus(). */
+			unfocus(sel);
+			if (c->isurgent)
+				seturgency(c, 0);
+			detachstack(c);
+			c->snext = stack;
+			stack = c;
+			sel = c;
+			grabbuttons(c, 1);
+			BORDER(c, color_sel);
+		} else {
+			setfocus(sel);
+		}
+	}
 }
 
 static void

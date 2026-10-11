@@ -1,0 +1,4 @@
+nwm
+nwm_dbg
+*.o
+*.tar.gz
