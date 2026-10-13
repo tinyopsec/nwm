@@ -32,10 +32,11 @@
 ## Contents
 
 - [Quick Start](#quick-start)
-- [vs dwm](#vs-dwm)
+- [Why small](#why-small)
 - [Features](#features)
 - [Screenshots](#screenshots)
 - [Installation](#installation)
+- [Packaging](#packaging)
 - [Usage](#usage)
 - [Key Bindings](#key-bindings)
 - [Configuration](#configuration)
@@ -65,29 +66,29 @@ startx
 
 ---
 
-## vs dwm
+## Why small
 
-`nwm` takes direct inspiration from dwm but diverges in a few concrete ways:
+I improved it by cutting out what I do not use: no bar, no text drawing, no extra libraries. Only window management is left:
 
-| Area | dwm | nwm |
-|---|---|---|
-| Lines of code | ~2901 total (.h / .c) | ~2000 (fits in one reading session) |
-| RAM at idle | ~5–15 MB | ~3–8 MB on my PC (leaner process image) |
-| Tiling arithmetic | Height of each window computed from the space left | Integer division, remainder assigned to the last window |
-| Gap support | Requires patching | Built in via `gappx` |
-| Mod+Tab behavior | Inconsistent across patches | Deterministic XOR two-slot history |
-| POSIX compliance | Uses GNU extensions in places | Strict C99 / POSIX orientation |
-| Status bar | Built-in bar, requires patching to remove | No built-in bar; any EWMH-aware external bar works (polybar, tint2, lemonbar), see [External Bars](#external-bars) |
-| Config complexity | ~100–150 lines of config + patch management | Single flat `nwm.h`, no patch stack |
-| Audit surface | Large: bar, fonts, drawing code | Minimal: window management only |
+| Area | nwm |
+|---|---|
+| Lines of code | ~2000 (fits in one reading session) |
+| RAM at idle | ~3-8 MB on my PC |
+| Tiling arithmetic | Integer division, remainder assigned to the last window |
+| Gap support | Built in via `gappx` |
+| Mod+Tab behavior | Deterministic XOR two-slot history |
+| POSIX compliance | Strict C99 / POSIX orientation |
+| Status bar | None; any EWMH-aware external bar works (polybar, tint2, lemonbar), see [External Bars](#external-bars) |
+| Config | Single flat `nwm.h`, no patch stack |
+| Audit surface | Minimal: window management only |
 
-dwm's bar and font rendering alone account for a significant portion of its codebase. `nwm` drops all of that. No drawing, no text, no color schemes beyond three border hex values.
-
-If you already run a patched dwm, `nwm` is roughly what you end up with after applying gaps and pertag-like patches, except the behavior is defined once, not assembled from diffs.
+No drawing, no text, no color schemes beyond three border hex values.
 
 ---
 
 ## Features
+
+What I actually use, nothing extra:
 
 | Category | Details |
 |---|---|
@@ -112,7 +113,7 @@ If you already run a patched dwm, `nwm` is roughly what you end up with after ap
 <img src="https://raw.githubusercontent.com/tinyopsec/distrohop/main/assets/alpine.webp" width="49%" alt="nwm on Alpine Linux rice, my pc btw: three terminals tiled in master/stack layout">
 <img src="https://raw.githubusercontent.com/tinyopsec/distrohop/main/assets/arch.webp" width="49%" alt="nwm master/stack with browser in master and two terminals in stack">
 
-These are my screenshots.
+This is my setup, nothing staged. Three terminals in master/stack on the left, browser plus terminals on the right.
 
 ---
 
@@ -120,12 +121,7 @@ These are my screenshots.
 
 ### Requirements
 
-| Dependency | Arch | Debian / Ubuntu | Void | Alpine |
-|---|---|---|---|---|
-| Xlib | libx11 | libx11-dev | libX11-devel | libx11-dev |
-| C compiler | `gcc` or `clang` | build-essential | gcc | build-base |
-
-No runtime dependencies beyond Xlib.
+You need a C compiler (`gcc` or `clang`) and Xlib headers. Install them with your system package manager. No runtime dependencies beyond Xlib.
 
 ### From Source
 
@@ -173,6 +169,16 @@ make && sudo make install
 ```sh
 sudo make uninstall
 ```
+
+---
+
+## Packaging
+
+I keep the source small and portable so packaging stays downstream. Live status across repos:
+
+[![Packaging status](https://repology.org/badge/vertical-allrepos/nwm.svg)](https://repology.org/project/nwm/versions)
+
+Source of truth: https://repology.org/project/nwm/versions
 
 ---
 
@@ -284,7 +290,7 @@ All bindings are defined in the `keys[]` and `buttons[]` arrays in `nwm.h`.
 
 ## Configuration
 
-`nwm` is configured at compile time by editing `nwm.h`. There is no config file, no IPC, no reload mechanism.
+I configure nwm by editing `nwm.h`. There is no config file, no IPC, no reload mechanism.
 
 > [!IMPORTANT]
 > After every change to `nwm.h`, run `make && sudo make install` and restart nwm.
@@ -298,7 +304,7 @@ All bindings are defined in the `keys[]` and `buttons[]` arrays in `nwm.h`.
 | `col_nborder` | `#0E2426` | Inactive border color |
 | `col_sborder` | `#59C6B5` | Focused border color |
 | `col_uborder` | `#c47f50` | Urgent window border color |
-| `mfact` | `0.5` | Master area ratio (0.05–0.95) |
+| `mfact` | `0.5` | Master area ratio (0.05-0.95) |
 | `nmaster` | `1` | Initial number of master windows |
 | `snap` | `16` | Edge snap / float-on-drag threshold in pixels |
 | `attachbottom` | `0` | Set to `1` to append new windows at the end of the client list (tiling order). A new window still goes to the top of the focus stack |
@@ -401,7 +407,7 @@ Notes:
 
 ## How It Works
 
-`nwm` manages windows through a flat client list and a parallel focus stack. The tiling algorithm divides the screen into a master area and a stack area, computing tile sizes with integer arithmetic, so there is no pixel drift across redraws. The remaining pixels are assigned to the last window in each column. Only the master width is derived from the floating-point `mfact`, which is clamped to 0.05–0.95.
+`nwm` manages windows through a flat client list and a parallel focus stack. The tiling algorithm divides the screen into a master area and a stack area, computing tile sizes with integer arithmetic, so there is no pixel drift across redraws. The remaining pixels are assigned to the last window in each column. Only the master width is derived from the floating-point `mfact`, which is clamped to 0.05-0.95.
 
 Tags are bitmasks. Each client carries a tag bitmask; the active view is a bitmask. A client is visible when the bitwise AND of its tags and the current view is nonzero. This means one window can appear on multiple tags simultaneously.
 
@@ -435,13 +441,13 @@ Some behavior is intentionally explicit:
 - A panel can switch tags by sending `_NET_CURRENT_DESKTOP`. Clicking a window in a taskbar sends `_NET_ACTIVE_WINDOW`, which only marks that window urgent (see above). The `_NET_WM_DESKTOP` client message is not handled, so a panel cannot move windows between tags.
 - Not implemented: `_NET_CLIENT_LIST_STACKING`, `_NET_SHOWING_DESKTOP`.
 
-It’s hard to explain in words, but you can grasp the entire code structure if you spend an hour reading the code.
+It is hard to explain in words, but you can grasp the entire code structure if you spend an hour reading the code. I run nwm on my machines when I want a quiet setup, so real rough edges get fixed.
 
 ---
 
 ## Contributing
 
-Bug reports and patches are welcome via [GitHub Issues](https://github.com/tinyopsec/nwm/issues) and pull requests.
+Found a bug or a rough edge. Open an issue with steps to reproduce and your setup.
 
 <details>
 <summary>Code requirements</summary>
@@ -467,7 +473,6 @@ Bug reports and patches are welcome via [GitHub Issues](https://github.com/tinyo
 
 | Project | Link |
 |---|---|
-| dwm | [dwm.suckless.org](https://dwm.suckless.org) |
 | st terminal | [st.suckless.org](https://st.suckless.org) |
 | dmenu | [tools.suckless.org/dmenu](https://tools.suckless.org/dmenu/) |
 | suckless.org | [suckless.org](https://suckless.org) |
@@ -496,10 +501,6 @@ Thanks to my friends for their help, and I also thank these resources:
 - demolab.com
 - star-history.com
 - Ross Maloney for Fundamentals of Xlib Programming by Examples: https://www.linux.co.cr/desktops/review/acrobat/030103.pdf
-
-Sorry for the English; I'm using a translator.
-
-I removed the original Russian comments from the code; the remaining comments are short and in English.
 
 </details>
 
