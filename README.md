@@ -9,7 +9,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-33ACB4?style=flat&labelColor=0E2426&logo=opensourceinitiative&logoColor=33ACB4" alt="license MIT">
   <img src="https://img.shields.io/badge/C99%20%2F%20POSIX-46B9B4?style=flat&label=lang&labelColor=0E2426&logo=c&logoColor=46B9B4" alt="C99 / POSIX">
-  <img src="https://img.shields.io/badge/%7E2000%20lines-59C6B5?style=flat&label=source&labelColor=0E2426&logo=files&logoColor=59C6B5" alt="about 2000 lines">
+  <img src="https://img.shields.io/badge/%7E1900%20lines-59C6B5?style=flat&label=source&labelColor=0E2426&logo=files&logoColor=59C6B5" alt="about 1900 lines">
   <img src="https://img.shields.io/badge/1.6.5-6CD4B5?style=flat&label=version&labelColor=0E2426&logo=tag&logoColor=6CD4B5" alt="version 1.6.5">
   &nbsp;
   <img src="https://img.shields.io/badge/Linux-7EE1B5?style=flat&labelColor=0E2426&logo=linux&logoColor=7EE1B5" alt="Linux">
@@ -72,7 +72,7 @@ I improved it by cutting out what I do not use: no bar, no text drawing, no extr
 
 | Area | nwm |
 |---|---|
-| Lines of code | ~2000 (fits in one reading session) |
+| Lines of code | ~1900 (fits in one reading session) |
 | RAM at idle | ~3-8 MB on my PC |
 | Tiling arithmetic | Integer division, remainder assigned to the last window |
 | Gap support | Built in via `gappx` |
