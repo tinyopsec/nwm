@@ -33,7 +33,7 @@ int pledge(const char *, const char *);
 #define ARR             (cur.lt[cur.li]->ar)             /* current layout, NULL = floating */
 #define FREE(c)         ((c)->isfloating || !ARR)        /* positioned by the user, not by the layout */
 #define CYCLE(c)        (VIS(c) && !(ARR && (c)->isfloating))
-#define MOTION_THROTTLE_MS 16
+/* MOTION_THROTTLE_MS is configured in nwm.h (0 disables throttling). */
 
 typedef union { int i; unsigned int ui; float f; const void *v; } A;
 typedef struct { unsigned int click, mask, button; void (*fn)(const A *); A arg; } B;
@@ -994,7 +994,7 @@ movemouse(const A *arg)
 				break;
 			}
 		} else if (ev.type == MotionNotify) {
-			if (ev.xmotion.time - last <= MOTION_THROTTLE_MS)
+			if (MOTION_THROTTLE_MS > 0 && ev.xmotion.time - last <= MOTION_THROTTLE_MS)
 				continue;
 			last = ev.xmotion.time;
 			nx = ocx + ev.xmotion.x - x;
@@ -1146,7 +1146,7 @@ resizemouse(const A *arg)
 		if (ev.type == ConfigureRequest || ev.type == MapRequest) {
 			handler[ev.type](&ev);
 		} else if (ev.type == MotionNotify) {
-			if (ev.xmotion.time - last <= MOTION_THROTTLE_MS)
+			if (MOTION_THROTTLE_MS > 0 && ev.xmotion.time - last <= MOTION_THROTTLE_MS)
 				continue;
 			last = ev.xmotion.time;
 			nw = MAX(ev.xmotion.x - ocx - (c->bw << 1) + 1, 1);

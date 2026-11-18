@@ -23,6 +23,13 @@
 #define NWM_WITH_GAPS    1
 #define NWM_WITH_PERTAG  1
 
+/*
+ * Motion throttle in milliseconds during move/resize.
+ * Skips MotionNotify events closer than this; 0 disables throttling
+ * (every event is applied). Lower = more responsive, higher = less X traffic.
+ */
+#define MOTION_THROTTLE_MS 16
+
 #define TAGKEYS(KEY,TAG) \
 	{ MODKEY,              KEY, view,      {.ui = 1u << (TAG)} }, \
 	{ MODKEY|ControlMask,  KEY, toggleview,{.ui = 1u << (TAG)} }, \

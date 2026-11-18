@@ -307,11 +307,15 @@ I configure nwm by editing `nwm.h`. There is no config file, no IPC, no reload m
 | `mfact` | `0.5` | Master area ratio (0.05-0.95) |
 | `nmaster` | `1` | Initial number of master windows |
 | `snap` | `16` | Edge snap / float-on-drag threshold in pixels |
+| `MOTION_THROTTLE_MS` | `16` | Motion throttle in ms during move/resize; `0` disables it |
 | `attachbottom` | `0` | Set to `1` to append new windows at the end of the client list (tiling order). A new window still goes to the top of the focus stack |
 | `focusonopen` | `1` | Set to `0` to keep focus on the current window when a new one opens |
 | `NWM_WITH_BORDERS` | `1` | `0` removes border colors; new windows get border width `0` |
 | `NWM_WITH_GAPS` | `1` | `0` removes `gappx`; tiling and monocle use zero gaps |
 | `NWM_WITH_PERTAG` | `1` | `0` removes per-tag state: one layout, `mfact` and `nmaster` for all tags |
+
+> `MOTION_THROTTLE_MS` skips move/resize updates closer than this many ms.
+> Lower feels more responsive; `0` disables throttling entirely (more X traffic).
 
 ### Modifier Key
 
