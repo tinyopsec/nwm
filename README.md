@@ -437,7 +437,7 @@ Some behavior is intentionally explicit:
 - A focused floating window keeps focus when the pointer moves over tiled windows.
 - While a fullscreen window is focused, `Mod+j` / `Mod+k` and focus-follows-mouse do not change focus.
 - Mouse resize moves the pointer to the bottom-right corner of the window.
-- The screen size is read once at startup. RandR, multi-monitor layouts and resolution changes are not handled; the whole X screen is treated as one monitor.
+- The whole X screen is treated as one monitor. A root window resize, for example an xrandr resolution change, updates the tiling area and `_NET_WORKAREA`; individual outputs are not tracked, so a desktop extended across monitors is still tiled as one screen.
 - There is no minimize/iconify support. Windows left iconic by a previous window manager are mapped on startup.
 - `_NET_WM_STATE` (only `_NET_WM_STATE_FULLSCREEN`) is read when a window is mapped and honored via client messages; later changes to the property itself are not tracked.
 - Every tag is an EWMH desktop. `_NET_CURRENT_DESKTOP` is the lowest tag of the current view (when several tags are shown), `_NET_WM_DESKTOP` of a window is its lowest tag (`0xFFFFFFFF` if it is on all tags), and `_NET_DESKTOP_NAMES` comes from `tags[]`. These properties are only written when something changed.

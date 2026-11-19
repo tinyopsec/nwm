@@ -1,34 +1,22 @@
 #define MODKEY Mod4Mask
 
 /*
- * Compile-time constructor.
+ * Compile-time config. Set to 0 to drop code/data; recompile after
+ * changes, this is not runtime config.
  *
- * Set these to 0 to remove the corresponding code/data from the build.
- * This is not runtime configuration. Recompile after changing.
- *
- * NWM_WITH_BORDERS = 0:
- *   - no border colors are allocated;
- *   - new clients get border width 0;
- *   - original client border width is still restored on exit/unmanage.
- *
- * NWM_WITH_GAPS = 0:
- *   - no gappx;
- *   - tile/monocle use zero gaps.
- *
- * NWM_WITH_PERTAG = 0:
- *   - no per-tag layout/master/mfact/nmaster state;
- *   - saves a small static array and related logic
+ * NWM_WITH_BORDERS: border width 0, no colors; old width restored on exit.
+ * NWM_WITH_GAPS:    no gappx, zero gaps.
+ * NWM_WITH_PERTAG:  no per-tag layout/master state.
  */
 #define NWM_WITH_BORDERS 1
 #define NWM_WITH_GAPS    1
 #define NWM_WITH_PERTAG  1
 
 /*
- * Motion throttle in milliseconds during move/resize.
- * Skips MotionNotify events closer than this; 0 disables throttling
- * (every event is applied). Lower = more responsive, higher = less X traffic.
+ * Motion throttle during move/resize, ms. 0 disables it; lower is
+ * smoother, higher saves X traffic.
  */
-#define MOTION_THROTTLE_MS 16
+#define MOTION_THROTTLE_MS 0
 
 #define TAGKEYS(KEY,TAG) \
 	{ MODKEY,              KEY, view,      {.ui = 1u << (TAG)} }, \

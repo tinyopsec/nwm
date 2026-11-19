@@ -77,7 +77,7 @@ static void bp(XEvent *);
 static void checkwm(void);
 static void cleanup(void);
 static void clientmsg(XEvent *);
-static void configurenotify(C *);
+static void configurenotify(XEvent *);
 static void configurerequest(XEvent *);
 static void destroynotify(XEvent *);
 static void detach(C *);
@@ -111,6 +111,7 @@ static void resizemouse(const A *);
 static void restack(void);
 static void run(void);
 static void scan(void);
+static void sendconfigure(C *);
 static int sendevent(C *, Atom);
 static void setclientstate(C *, long);
 static void setfocus(C *);
@@ -182,6 +183,7 @@ static PT cur;
 static void (*handler[LASTEvent])(XEvent *) = {
 	[ButtonPress]      = bp,
 	[ClientMessage]    = clientmsg,
+	[ConfigureNotify]  = configurenotify,
 	[ConfigureRequest] = configurerequest,
 	[DestroyNotify]    = destroynotify,
 	[EnterNotify]      = enternotify,
@@ -386,9 +388,8 @@ bp(XEvent *e)
 	}
 
 	/*
-	 * Unfocused clients carry a synchronous grab that freezes pointer and
-	 * keyboard until released. Release it even if the client is already
-	 * gone, otherwise all input stays frozen.
+	 * Unfocused clients hold a synchronous grab that freezes input
+	 * until released, even if the client is gone.
 	 */
 	XAllowEvents(display, ReplayPointer, CurrentTime);
 
@@ -483,7 +484,7 @@ clientmsg(XEvent *e)
 }
 
 static void
-configurenotify(C *c)
+sendconfigure(C *c)
 {
 	XConfigureEvent ce = {
 		.type = ConfigureNotify, .send_event = True, .display = display,
@@ -493,6 +494,30 @@ configurenotify(C *c)
 	};
 
 	XSendEvent(display, c->win, False, StructureNotifyMask, (XEvent *)&ce);
+}
+
+static void
+configurenotify(XEvent *e)
+{
+	C *c;
+	long geo[2];
+
+	if (e->xconfigure.window != root ||
+	    (e->xconfigure.width == screen_w && e->xconfigure.height == screen_h))
+		return;
+
+	/* xrandr changes the framebuffer size; the root gets ConfigureNotify. */
+	screen_w = e->xconfigure.width;
+	screen_h = e->xconfigure.height;
+	geo[0] = screen_w;
+	geo[1] = screen_h;
+	XChangeProperty(display, root, netatom[NetDesktopGeometry], XA_CARDINAL, 32,
+	                PropModeReplace, (unsigned char *)geo, 2);
+	for (c = clients; c; c = c->next)
+		if (c->isfullscreen && !c->hidden)
+			resizeclient(c, 0, 0, screen_w, screen_h);
+	/* Retile and republish _NET_WORKAREA if the tiling area changed. */
+	updateworkarea();
 }
 
 static void
@@ -524,20 +549,18 @@ configurerequest(XEvent *e)
 		if (ev->value_mask & CWHeight) h = ev->height;
 
 		if (VIS(c)) {
-			/* No XConfigureWindow on redundant requests, but a denied
-			 * request still needs a synthetic ack: without it the client
-			 * keeps re-sending the same request (retry storm = flicker
-			 * and freeze until it gives up). The real ConfigureNotify
-			 * from the server already acks a granted request. */
+			/* A denied request needs a synthetic ack, else the client
+			 * retries forever (storm = flicker). A granted one gets the
+			 * server's real ConfigureNotify. */
 			if (!(applysizehints(c, &x, &y, &w, &h, 0) &&
 			      resizeclient(c, x, y, w, h)))
-				configurenotify(c);
+				sendconfigure(c);
 			return;
 		}
 		applysizehints(c, &x, &y, &w, &h, 0);
 		c->x = x; c->y = y; c->w = w; c->h = h;
 	}
-	configurenotify(c);
+	sendconfigure(c);
 }
 
 static void
@@ -643,19 +666,15 @@ focusin(XEvent *e)
 {
 	C *c;
 	/*
-	 * A visible managed client taking focus (a modal dialog
-	 * re-asserting it) only resyncs local selection: answering
-	 * with XSetInputFocus fights the client at full speed
-	 * (focus ping-pong = flicker), the server echoes each
-	 * assertion back and the loop never ends. Only focus lost
-	 * to unmanaged windows is reclaimed.
+	 * A client re-asserting focus (modal dialog) only resyncs
+	 * selection: XSetInputFocus would echo back at full speed
+	 * (ping-pong). Reclaim only focus lost to unmanaged windows.
 	 */
 	if (sel && e->xfocus.window != sel->win) {
 		c = wintoclient(e->xfocus.window);
 		if (c && VIS(c)) {
-			/* Adopt like focus(), minus XSetInputFocus/_NET_ACTIVE_WINDOW:
-			 * border, grabs and urgency never echo back (no ping-pong).
-			 * ACTIVE stays stale until the next real focus(). */
+			/* Adopt like focus(), minus XSetInputFocus and
+			 * _NET_ACTIVE_WINDOW: no echo, no ping-pong. */
 			unfocus(sel);
 			if (c->isurgent)
 				seturgency(c, 0);
@@ -871,9 +890,8 @@ manage(Window w, XWindowAttributes *wa)
 		c->isfloating = c->oldstate = rule_floating;
 	updatewindowtype(c);
 
-	/* Floating windows are normalized now (real ConfigureNotify).
-	 * Fullscreen was already configured by setfullscreen().
-	 * Tiled windows are configured by the pre-tile below. */
+	/* Floating windows are normalized now; fullscreen was set by
+	 * setfullscreen(), tiled ones by the pre-tile below. */
 	if (!c->isfullscreen && FREE(c))
 		resize(c, c->x, c->y, c->w, c->h, 0);
 
@@ -943,7 +961,7 @@ monocle(void)
 		if (resize(c, wx + gap, wy + gap,
 		           MAX(1, ww - 2 * gap - (c->bw << 1)),
 		           MAX(1, wh - 2 * gap - (c->bw << 1)), 0))
-			configurenotify(c);
+			sendconfigure(c);
 	}
 }
 
@@ -1082,8 +1100,8 @@ handleterm(int sig)
 }
 
 /*
- * Tiled windows intentionally ignore size hints to keep the layout
- * deterministic. Floating windows respect ICCCM size hints.
+ * Tiled windows ignore size hints (deterministic layout); floating
+ * windows respect them.
  */
 static int
 resize(C *c, int x, int y, int w, int h, int interact)
@@ -1098,10 +1116,8 @@ resizeclient(C *c, int x, int y, int w, int h)
 {
 	XWindowChanges wc;
 
-	/* No X call means no ConfigureNotify storm. The hidden check forces
-	 * the return from off-screen: hide moves the window without touching
-	 * c->x, so coordinates alone look unchanged. Returns 1 when the
-	 * server was touched, so callers send ConfigureNotify only then. */
+	/* No X call, no ConfigureNotify storm. The hidden flag forces the
+	 * return from off-screen; returns 1 when the server was touched. */
 	if (c->x == x && c->y == y && c->w == w && c->h == h && !c->hidden)
 		return 0;
 	c->hidden = 0;
@@ -1171,14 +1187,55 @@ resizemouse(const A *arg)
 static void
 restack(void)
 {
-	C *c;
+	C *c, *f;
 	XWindowChanges wc;
+	int same, other;
 
 	if (!sel)
 		return;
 
 	if (sel->isfullscreen || !ARR) {
 		XRaiseWindow(display, sel->win);
+		return;
+	}
+
+	/*
+	 * Monocle: all tiled windows share one rectangle, so lowering them
+	 * one by one feeds EnterNotify back into focus(). Put sel below the
+	 * lowest float (or on top), the rest below sel.
+	 */
+	same = !sel->isfloating;
+	other = 0;
+	f = NULL;
+	for (c = stack; same && c; c = c->snext) {
+		if (!VIS(c) || c == sel)
+			continue;
+		if (c->isfloating) {
+			f = c;
+			continue;
+		}
+		other = 1;
+		if (c->x != sel->x || c->y != sel->y ||
+		    c->w != sel->w || c->h != sel->h || c->bw != sel->bw)
+			same = 0;
+	}
+	if (same) {
+		if (f) {
+			wc.stack_mode = Below;
+			wc.sibling = f->win;
+			XConfigureWindow(display, sel->win,
+			                 CWSibling | CWStackMode, &wc);
+		} else if (other) {
+			XRaiseWindow(display, sel->win);
+		} else {
+			return;
+		}
+		wc.stack_mode = Below;
+		wc.sibling = sel->win;
+		for (c = stack; c; c = c->snext)
+			if (c != sel && VIS(c) && !c->isfloating)
+				XConfigureWindow(display, c->win,
+				                 CWSibling | CWStackMode, &wc);
 		return;
 	}
 
@@ -1448,10 +1505,11 @@ showhide(C *c)
 				c->hidden = 1;
 			}
 		} else if (c->hidden) {
-			/* Back from off-screen. Floating windows return here;
-			 * tiled placement follows in ar(), and its resizeclient()
-			 * forces the return via the hidden flag. */
-			if (FREE(c)) /* includes fullscreen */
+			/* Back from off-screen: fullscreen follows the screen,
+			 * floating returns here, tiled in ar(). */
+			if (c->isfullscreen)
+				resizeclient(c, 0, 0, screen_w, screen_h);
+			else if (FREE(c))
 				resizeclient(c, c->x, c->y, c->w, c->h);
 		}
 	}
@@ -1502,7 +1560,7 @@ col(C *c, unsigned int n, int x, int w)
 	for (i = 0; c && i < n; c = nexttiled(c->next), i++) {
 		h = rem / (int)n + (i == n - 1 ? rem % (int)n : 0);
 		if (resize(c, x, y, MAX(1, w - (c->bw << 1)), MAX(1, h - (c->bw << 1)), 0))
-			configurenotify(c);
+			sendconfigure(c);
 		y += h + gap;
 	}
 	return c;
@@ -1748,9 +1806,8 @@ updatewmhints(C *c)
 }
 
 /*
- * Docks reserve screen edges via _NET_WM_STRUT_PARTIAL or _NET_WM_STRUT; the
- * biggest strut per edge wins. Strut ranges are ignored: the X screen is one
- * monitor. Tiling, monocle and snapping use the area that is left.
+ * Docks reserve edges via _NET_WM_STRUT(_PARTIAL), biggest wins. Strut
+ * ranges are ignored: the X screen is one monitor.
  */
 static void
 updateworkarea(void)
@@ -1824,10 +1881,7 @@ wintoclient(Window w)
 	return c;
 }
 
-/*
- * Windows vanish under us all the time (BadWindow) and some requests race
- * with that. None of it is worth killing the session over: log and go on.
- */
+/* Windows vanish under us (BadWindow): log and go on. */
 static int
 xerror(Display *dpy, XErrorEvent *ee)
 {

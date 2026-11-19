@@ -413,8 +413,9 @@ and the other hints named above. On OpenBSD nwm uses
 .BR pledge (2).
 .SH BUGS AND LIMITATIONS
 .IP \(bu 2
-The screen size is read once at startup. RandR, multiple monitors and
-resolution changes are not handled.
+The whole X screen is one monitor. A root window resize, for example an
+xrandr resolution change, updates the tiling area; individual outputs
+are not tracked.
 .IP \(bu 2
 There is no minimize or iconify support.
 .IP \(bu 2
