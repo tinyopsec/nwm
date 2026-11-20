@@ -176,6 +176,7 @@ static unsigned int numlockmask, sel_group, tagsel[2];
 static Cursor cursor[3];
 static Atom wmatom[WMLast], netatom[NetLast];
 static C *clients, *sel, *stack;
+static int suppress_enter; /* close fallout, see unmanage()/enternotify() */
 static Window docks[8];
 static unsigned int ndock;
 static PT cur;
@@ -619,6 +620,12 @@ enternotify(XEvent *e)
 	XCrossingEvent *ev = &e->xcrossing;
 	C *c;
 
+	/* A close just restored focus to the predecessor; this EnterNotify
+	 * is the close fallout, not a real pointer move. */
+	if (suppress_enter) {
+		suppress_enter = 0;
+		return;
+	}
 	if ((ev->mode != NotifyNormal || ev->detail == NotifyInferior) &&
 	    ev->window != root)
 		return;
@@ -1659,7 +1666,15 @@ static void
 unmanage(C *c, int destroyed)
 {
 	XWindowChanges wc;
+	C *nxt = NULL;
 
+	/* A focused window closed: the stack still holds what was
+	 * focused before it, so return focus there instead of to
+	 * the first visible window. */
+	if (c == sel) {
+		nxt = c->snext;
+		suppress_enter = 1;
+	}
 	detach(c);
 	detachstack(c);
 
@@ -1675,7 +1690,7 @@ unmanage(C *c, int destroyed)
 	}
 
 	free(c);
-	focus(NULL);
+	focus(nxt);
 	updateclientlist();
 	ar();
 }
