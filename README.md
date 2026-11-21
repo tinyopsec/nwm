@@ -387,10 +387,19 @@ modules-center = xwindow
 [module/xworkspaces]
 type = internal/xworkspaces
 enable-click = true
+label-active = %name%
+label-active-background = #ffffff
+label-active-foreground = #000000
+label-occupied = %name%
+label-occupied-foreground = #888888
+label-empty = %name%
+label-empty-foreground = #444444
 
 [module/xwindow]
 type = internal/xwindow
 ```
+
+Polybar paints each tag by state: `label-active` for the current tag, `label-occupied` for a tag that has windows but is not current, `label-empty` for a tag without windows. A state without a label falls back to plain `%name%`, so an unset `label-occupied` makes an occupied tag look exactly like an empty one.
 
 Start the bar from `~/.xinitrc` (nwm has no autostart). Before or after nwm both work:
 
